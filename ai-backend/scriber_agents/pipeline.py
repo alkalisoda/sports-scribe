@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional, List
 from .data_collector import DataCollectorAgent
 from .researcher import ResearchAgent
 from .writer import WritingAgent
-from openai import AsyncOpenAI
+from .format_manager import FormatManager
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -48,13 +48,11 @@ class ArticlePipeline:
             "temperature": self.temperature,
             "max_tokens": self.max_tokens
         }
-        
-        self.openai_client = AsyncOpenAI(api_key=self.openai_api_key)
-        
-        # Initialize all agents with config only (do not pass openai_client)
+
         self.collector = DataCollectorAgent(config)
         self.researcher = ResearchAgent(config)
         self.writer = WritingAgent(config)
+        self.format_manager = FormatManager(config)
         
         logger.info("Article Pipeline initialized with environment variables")
 
@@ -75,13 +73,21 @@ class ArticlePipeline:
             team_data = await self._collect_team_data(game_data)
             logger.info(f"[PIPELINE-COLLECTOR] Team data collected successfully for game {game_id}")
             
-            # Step 2: Research & Context
-            logger.info(f"[PIPELINE-RESEARCHER] Step 2: Research & Context for game {game_id}")
-            research_data = await self._research_game_context(game_data, team_data)
+            # Step 2: Format Data for Researcher
+            logger.info(f"[PIPELINE-FORMAT] Step 2: Formatting data for researcher agent for game {game_id}")
+            formatted_game_data = await self.format_manager.prepare_data_for_researcher(
+                data_collector_output=game_data,
+                research_type="game_analysis"
+            )
+            logger.info(f"[PIPELINE-FORMAT] Game data formatted for researcher successfully for game {game_id}")
+            
+            # Step 3: Research & Context
+            logger.info(f"[PIPELINE-RESEARCHER] Step 3: Research & Context for game {game_id}")
+            research_data = await self._research_game_context(formatted_game_data, team_data)
             logger.info(f"[PIPELINE-RESEARCHER] Research completed successfully for game {game_id}")
             
-            # Step 3: Storyline Generation
-            logger.info(f"[PIPELINE-RESEARCHER] Step 3: Storyline Generation for game {game_id}")
+            # Step 4: Storyline Generation
+            logger.info(f"[PIPELINE-RESEARCHER] Step 4: Storyline Generation for game {game_id}")
             data_list = [game_data]
             if team_data.get("home_team"):
                 data_list.append(team_data["home_team"])
@@ -95,16 +101,33 @@ class ArticlePipeline:
             logger.info(f"[PIPELINE-RESEARCHER] Storylines for game {game_id}: {storylines}")
             logger.debug(f"[PIPELINE-RESEARCHER] Storylines: {storylines[:3]}...")  # Log first 3 storylines
             
-            # Step 4: Content Generation
-            logger.info(f"[PIPELINE-WRITER] Step 4: Content Generation for game {game_id}")
+            # Step 4: Format Data for Writer
+            logger.info(f"[PIPELINE-FORMAT] Step 4: Formatting data for writer agent for game {game_id}")
+            formatted_data = await self.format_manager.prepare_data_for_writer(
+                data_collector_output=game_data,
+                research_output=research_data,
+                article_type="game_recap"
+            )
+            logger.info(f"[PIPELINE-FORMAT] Data formatted successfully for game {game_id}")
+            
+            # Validate formatted data structure
+            if "error" in formatted_data:
+                raise Exception(f"Format manager error: {formatted_data['error']}")
+            
+            if "data" not in formatted_data or "research" not in formatted_data or "storylines" not in formatted_data:
+                logger.error(f"[PIPELINE-FORMAT] Invalid formatted data structure: {formatted_data.keys()}")
+                raise Exception("Formatted data missing required keys: data, research, or storylines")
+            
+            # Step 6: Content Generation
+            logger.info(f"[PIPELINE-WRITER] Step 6: Content Generation for game {game_id}")
             article_content = await self.writer.generate_game_recap(
-                game_data, research_data, storylines
+                formatted_data["data"], formatted_data["research"], formatted_data["storylines"]
             )
             logger.info(f"[PIPELINE-WRITER] Article content generated successfully for game {game_id}")
             logger.debug(f"[PIPELINE-WRITER] Article length: {len(article_content)} characters")
             
-            # Step 5: Return Results
-            logger.info(f"[PIPELINE] Step 5: Formatting results for game {game_id}")
+            # Step 7: Return Results
+            logger.info(f"[PIPELINE] Step 7: Formatting results for game {game_id}")
             result = self._format_result(
                 content=article_content,
                 metadata={
@@ -140,28 +163,53 @@ class ArticlePipeline:
             game_data = await self._collect_game_data(game_id)
             logger.info(f"[PIPELINE-COLLECTOR] Game data collected successfully for preview game {game_id}")
             
-            # Step 2: Research & Context
-            logger.info(f"[PIPELINE-RESEARCHER] Step 2: Research & Context for preview game {game_id}")
-            research_data = await self._research_game_context(game_data)
+            # Step 2: Format Data for Researcher
+            logger.info(f"[PIPELINE-FORMAT] Step 2: Formatting data for researcher agent for preview game {game_id}")
+            formatted_game_data = await self.format_manager.prepare_data_for_researcher(
+                data_collector_output=game_data,
+                research_type="game_analysis"
+            )
+            logger.info(f"[PIPELINE-FORMAT] Game data formatted for researcher successfully for preview game {game_id}")
+            
+            # Step 3: Research & Context
+            logger.info(f"[PIPELINE-RESEARCHER] Step 3: Research & Context for preview game {game_id}")
+            research_data = await self._research_game_context(formatted_game_data)
             logger.info(f"[PIPELINE-RESEARCHER] Research completed successfully for preview game {game_id}")
             
-            # Step 3: Storyline Generation
-            logger.info(f"[PIPELINE-RESEARCHER] Step 3: Storyline Generation for preview game {game_id}")
+            # Step 4: Storyline Generation
+            logger.info(f"[PIPELINE-RESEARCHER] Step 4: Storyline Generation for preview game {game_id}")
             storylines = await self._generate_storylines([game_data])
             logger.info(f"[PIPELINE-RESEARCHER] Generated {len(storylines)} storylines for preview game {game_id}")
             logger.info(f"[PIPELINE-RESEARCHER] Preview storylines for game {game_id}: {storylines}")
             logger.debug(f"[PIPELINE-RESEARCHER] Preview storylines: {storylines[:3]}...")  # Log first 3 storylines
             
-            # Step 4: Content Generation
-            logger.info(f"[PIPELINE-WRITER] Step 4: Content Generation for preview game {game_id}")
+            # Step 4: Format Data for Writer
+            logger.info(f"[PIPELINE-FORMAT] Step 4: Formatting data for writer agent for preview game {game_id}")
+            formatted_data = await self.format_manager.prepare_data_for_writer(
+                data_collector_output=game_data,
+                research_output=research_data,
+                article_type="preview_article"
+            )
+            logger.info(f"[PIPELINE-FORMAT] Data formatted successfully for preview game {game_id}")
+            
+            # Validate formatted data structure
+            if "error" in formatted_data:
+                raise Exception(f"Format manager error: {formatted_data['error']}")
+            
+            if "data" not in formatted_data or "research" not in formatted_data or "storylines" not in formatted_data:
+                logger.error(f"[PIPELINE-FORMAT] Invalid formatted data structure: {formatted_data.keys()}")
+                raise Exception("Formatted data missing required keys: data, research, or storylines")
+            
+            # Step 6: Content Generation
+            logger.info(f"[PIPELINE-WRITER] Step 6: Content Generation for preview game {game_id}")
             article_content = await self.writer.generate_preview_article(
-                game_data, research_data, storylines
+                formatted_data["data"], formatted_data["research"], formatted_data["storylines"]
             )
             logger.info(f"[PIPELINE-WRITER] Preview article content generated successfully for game {game_id}")
             logger.debug(f"[PIPELINE-WRITER] Preview article length: {len(article_content)} characters")
             
-            # Step 5: Return Results
-            logger.info(f"[PIPELINE] Step 5: Formatting preview results for game {game_id}")
+            # Step 7: Return Results
+            logger.info(f"[PIPELINE] Step 7: Formatting preview results for game {game_id}")
             result = self._format_result(
                 content=article_content,
                 metadata={
@@ -200,28 +248,53 @@ class ArticlePipeline:
             player_data = await self._collect_player_data(player_id)
             logger.info(f"[PIPELINE-COLLECTOR] Player data collected successfully for player {player_id}")
             
-            # Step 2: Research & Context
-            logger.info(f"[PIPELINE-RESEARCHER] Step 2: Research & Context for player {player_id}")
+            # Step 2: Format Data for Researcher
+            logger.info(f"[PIPELINE-FORMAT] Step 2: Formatting data for researcher agent for player {player_id}")
+            formatted_player_data = await self.format_manager.prepare_data_for_researcher(
+                data_collector_output=player_data,
+                research_type="player_performance"
+            )
+            logger.info(f"[PIPELINE-FORMAT] Player data formatted for researcher successfully for player {player_id}")
+            
+            # Step 3: Research & Context
+            logger.info(f"[PIPELINE-RESEARCHER] Step 3: Research & Context for player {player_id}")
             performance_data = await self._research_player_performance(player_id, game_id)
             logger.info(f"[PIPELINE-RESEARCHER] Research completed successfully for player {player_id}")
             
-            # Step 3: Storyline Generation
-            logger.info(f"[PIPELINE-RESEARCHER] Step 3: Storyline Generation for player {player_id}")
+            # Step 4: Storyline Generation
+            logger.info(f"[PIPELINE-RESEARCHER] Step 4: Storyline Generation for player {player_id}")
             storylines = await self._generate_storylines([player_data])
             logger.info(f"[PIPELINE-RESEARCHER] Generated {len(storylines)} storylines for player {player_id}")
             logger.info(f"[PIPELINE-RESEARCHER] Player storylines for player {player_id}: {storylines}")
             logger.debug(f"[PIPELINE-RESEARCHER] Player storylines: {storylines[:3]}...")  # Log first 3 storylines
             
-            # Step 4: Content Generation
-            logger.info(f"[PIPELINE-WRITER] Step 4: Content Generation for player {player_id}")
+            # Step 4: Format Data for Writer
+            logger.info(f"[PIPELINE-FORMAT] Step 4: Formatting data for writer agent for player {player_id}")
+            formatted_data = await self.format_manager.prepare_data_for_writer(
+                data_collector_output=player_data,
+                research_output=performance_data,
+                article_type="player_spotlight"
+            )
+            logger.info(f"[PIPELINE-FORMAT] Data formatted successfully for player {player_id}")
+            
+            # Validate formatted data structure
+            if "error" in formatted_data:
+                raise Exception(f"Format manager error: {formatted_data['error']}")
+            
+            if "data" not in formatted_data or "research" not in formatted_data or "storylines" not in formatted_data:
+                logger.error(f"[PIPELINE-FORMAT] Invalid formatted data structure: {formatted_data.keys()}")
+                raise Exception("Formatted data missing required keys: data, research, or storylines")
+            
+            # Step 6: Content Generation
+            logger.info(f"[PIPELINE-WRITER] Step 6: Content Generation for player {player_id}")
             article_content = await self.writer.generate_player_spotlight(
-                player_data, performance_data, storylines
+                formatted_data["data"], formatted_data["research"], formatted_data["storylines"]
             )
             logger.info(f"[PIPELINE-WRITER] Player spotlight content generated successfully for player {player_id}")
             logger.debug(f"[PIPELINE-WRITER] Player spotlight length: {len(article_content)} characters")
             
-            # Step 5: Return Results
-            logger.info(f"[PIPELINE] Step 5: Formatting player spotlight results for player {player_id}")
+            # Step 7: Return Results
+            logger.info(f"[PIPELINE] Step 7: Formatting player spotlight results for player {player_id}")
             result = self._format_result(
                 content=article_content,
                 metadata={
@@ -496,6 +569,7 @@ class ArticlePipeline:
             "pipeline_version": "1.0.0",
             "agents": {
                 "data_collector": "initialized",
+                "format_manager": "initialized",
                 "researcher": "initialized", 
                 "writer": "initialized"
             },

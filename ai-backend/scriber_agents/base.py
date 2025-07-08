@@ -43,10 +43,14 @@ class DataCollectorAgent(BaseAgent):
             raise ValueError("RAPIDAPI_KEY environment variable is not set")
 
     def initialize(self, config):
-        pass
+        self.api_key = os.getenv('RAPIDAPI_KEY')
+        if not self.api_key:
+            raise ValueError("RAPIDAPI_KEY environment variable is not set")
+        self.model = os.getenv("OPENAI_MODEL", "gpt-4o")
+        return
 
     async def execute(self, task):
-        prompt = task.get("prompt") or "You are a football data agent."
+        prompt = task.get("prompt") or "You are a football data agent. When the user asks for match information, always output the full details of all matches you find, including teams, scores, date, and venue. Do not summarize or ask the user if they want details—just output the full data directly."
         model = os.getenv("OPENAI_MODEL", "gpt-4o")
         user_prompt = task.get("user_prompt") or "Please query all Premier League (league ID: 39) matches for 2010-08-14"
 
@@ -80,31 +84,4 @@ class DataCollectorAgent(BaseAgent):
             return json.loads(data.decode("utf-8"))
         except json.JSONDecodeError:
             return {"error": "Failed to parse JSON response", "raw_response": data.decode("utf-8")}
-
-    @staticmethod
-    def function_schema():
-        return [
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_fixtures",
-                    "description": "Get football match information for specified league and date",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "league": {
-                                "type": "string",
-                                "description": "League ID (e.g., 39 for Premier League, 140 for La Liga)"
-                            },
-                            "date": {
-                                "type": "string",
-                                "description": "Match date in YYYY-MM-DD format"
-                            }
-                        },
-                        "required": ["league", "date"]
-                    }
-                }
-            }
-        ]
-    
 

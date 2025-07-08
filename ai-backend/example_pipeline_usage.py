@@ -33,8 +33,8 @@ async def main():
         return
     
     # Example game ID (you can replace with actual game IDs)
-    example_game_id = "1234567"
-    example_player_id = "9876543"
+    example_game_id = "686314"
+    example_player_id = "276"
     
     # Create result directory if it doesn't exist
     os.makedirs("result", exist_ok=True)
