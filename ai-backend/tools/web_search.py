@@ -10,67 +10,15 @@ from typing import Any
 
 import aiohttp
 from bs4 import BeautifulSoup
-from agents import function_tool
 
 from utils.security import sanitize_log_input
 
 logger = logging.getLogger(__name__)
 
 
-@function_tool
-def search_sports_news(query: str, limit: int = 10) -> str:
-    """
-    Search for sports news articles related to the query.
-
-    Args:
-        query: Search query
-        limit: Maximum number of results to return
-
-    Returns:
-        JSON string containing news article data
-    """
-    # TODO: Implement news search functionality
-    logger.info("Searching news for query: %s", sanitize_log_input(query))
-    return "[]"
-
-
-@function_tool
-def scrape_sports_article(url: str) -> str:
-    """
-    Scrape content from a sports article URL.
-
-    Args:
-        url: URL of the article to scrape
-
-    Returns:
-        JSON string containing article content and metadata
-    """
-    # TODO: Implement article scraping
-    logger.info("Scraping article: %s", sanitize_log_input(url))
-    return "{}"
-
-
-@function_tool
-def get_team_social_media_posts(team_name: str) -> str:
-    """
-    Get recent social media posts related to a team.
-
-    Args:
-        team_name: Name of the team
-
-    Returns:
-        JSON string with social media platform as key and posts as values
-    """
-    # TODO: Implement social media scraping
-    logger.info("Getting social media for team: %s", sanitize_log_input(team_name))
-    return "{}"
-
-
 class WebSearchTool:
     """
-    Legacy tool class for performing web searches and scraping relevant content.
-    Note: This class is kept for backward compatibility but new code should use
-    the function_tool decorated functions above.
+    Tool for performing web searches and scraping relevant content.
     """
 
     def __init__(self, user_agent: str = "Sport Scribe Bot 1.0"):

@@ -1,160 +1,117 @@
+#!/usr/bin/env python3
 """
-Example Pipeline Usage.
+Example usage of the SportsScribe Pipeline.
 
-This script demonstrates how to use the streamlined SportsScribe pipeline
-to generate a game recap article from raw fixture data.
+This script demonstrates how to use the streamlined pipeline
+to generate different types of sports articles.
 """
 
 import asyncio
-import logging
 import os
-import sys
-from datetime import datetime
+from typing import Dict, Any
 
-# Add the project root to the Python path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from scriber_agents.pipeline import AgentPipeline
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-logger = logging.getLogger(__name__)
-
-
-async def generate_game_recap_example():
-    """Example of generating a game recap using the pipeline."""
-    
-    logger.info("🎯 SportsScribe Pipeline Example")
-    logger.info("=" * 50)
-    
-    try:
-        # Initialize the pipeline
-        logger.info("🔧 Initializing pipeline...")
-        pipeline = AgentPipeline()
-        logger.info("✅ Pipeline initialized successfully")
-        
-        # Check pipeline status
-        status = await pipeline.get_pipeline_status()
-        logger.info(f"📊 Pipeline Status: {status['pipeline_status']}")
-        logger.info(f"🤖 Agents: {list(status['agents'].keys())}")
-        
-        # Generate a game recap
-        logger.info("📝 Generating game recap...")
-        game_id = "239625"  # Example game ID
-        
-        start_time = datetime.now()
-        result = await pipeline.generate_game_recap(game_id)
-        end_time = datetime.now()
-        
-        duration = (end_time - start_time).total_seconds()
-        
-        # Display results
-        if result.get("success", False):
-            logger.info("✅ Game recap generated successfully!")
-            logger.info(f"⏱️  Generation time: {duration:.2f} seconds")
-            logger.info(f"📄 Article type: {result.get('article_type')}")
-            logger.info(f"📊 Storylines generated: {len(result.get('storylines', []))}")
-            
-            # Display the article content
-            content = result.get("content", "")
-            logger.info(f"📝 Article length: {len(content)} characters")
-            
-            print("\n" + "=" * 50)
-            print("📰 GENERATED ARTICLE")
-            print("=" * 50)
-            print(content)
-            print("=" * 50)
-            
-            # Display storylines
-            storylines = result.get("storylines", [])
-            if storylines:
-                print("\n🎯 KEY STORYLINES:")
-                for i, storyline in enumerate(storylines, 1):
-                    print(f"  {i}. {storyline}")
-            
-            # Display metadata
-            metadata = result.get("metadata", {})
-            print(f"\n📊 METADATA:")
-            print(f"  Generated at: {metadata.get('generated_at')}")
-            print(f"  Model used: {metadata.get('model_used')}")
-            print(f"  Data sources: {metadata.get('data_sources')}")
-            
-        else:
-            logger.error("❌ Failed to generate game recap")
-            logger.error(f"Error: {result.get('error', 'Unknown error')}")
-            
-    except Exception as e:
-        logger.error(f"❌ Example failed: {e}")
-        raise
-
-
-async def test_pipeline_components():
-    """Test individual pipeline components."""
-    
-    logger.info("\n🧪 Testing Pipeline Components")
-    logger.info("=" * 50)
-    
-    try:
-        # Initialize pipeline
-        pipeline = AgentPipeline()
-        
-        # Test data collection
-        logger.info("📊 Testing data collection...")
-        game_data = await pipeline._collect_game_data("239625")
-        logger.info(f"✅ Data collection: {'Success' if game_data else 'Failed'}")
-        
-        # Test format manager
-        logger.info("🔄 Testing format manager...")
-        if game_data:
-            formatted_data = await pipeline.format_manager.prepare_data_for_researcher(
-                game_data, "game_analysis"
-            )
-            logger.info(f"✅ Format manager: {'Success' if formatted_data else 'Failed'}")
-        
-        # Test researcher
-        logger.info("🔍 Testing researcher...")
-        if game_data:
-            storylines = await pipeline.researcher.generate_storylines([game_data])
-            logger.info(f"✅ Researcher: {'Success' if storylines else 'Failed'}")
-            if storylines:
-                logger.info(f"   Generated {len(storylines)} storylines")
-        
-        logger.info("✅ All component tests completed")
-        
-    except Exception as e:
-        logger.error(f"❌ Component test failed: {e}")
+from scriber_agents.pipeline import ArticlePipeline
+from utils.logging_config import setup_logging
 
 
 async def main():
-    """Main function to run the example."""
+    """Demonstrate pipeline usage with different article types."""
     
-    # Check environment variables
-    required_vars = ["OPENAI_API_KEY", "RAPIDAPI_KEY"]
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    # Setup logging
+    setup_logging(
+        level="INFO",
+        log_file="logs/pipeline_example.log",
+        include_debug=True
+    )
     
-    if missing_vars:
-        logger.error(f"❌ Missing required environment variables: {missing_vars}")
-        logger.info("Please set the following environment variables:")
-        for var in missing_vars:
-            logger.info(f"  - {var}")
+    # Initialize the pipeline (uses environment variables automatically)
+    print("🚀 Initializing SportsScribe Pipeline...")
+    try:
+        pipeline = ArticlePipeline()
+    except ValueError as e:
+        print(f"❌ Error: {str(e)}")
         return
     
-    # Run the example
-    await generate_game_recap_example()
+    # Example game ID (you can replace with actual game IDs)
+    example_game_id = "1234567"
+    example_player_id = "9876543"
     
-    # Run component tests
-    await test_pipeline_components()
+    # Create result directory if it doesn't exist
+    os.makedirs("result", exist_ok=True)
     
-    logger.info("\n🎉 Example completed successfully!")
+    try:
+        # Example 1: Generate Game Recap
+        print(f"\n📝 Generating Game Recap for game {example_game_id}...")
+        recap_result = await pipeline.generate_game_recap(example_game_id)
+        
+        print("✅ Game Recap Generated Successfully!")
+        print(f"📊 Metadata: {recap_result['metadata']}")
+        print(f"📄 Content Preview: {recap_result['content'][:200]}...")
+        with open("result/game_recap.txt", "w", encoding="utf-8") as f:
+            f.write(recap_result["content"])
+        
+        # Example 2: Generate Preview Article
+        print(f"\n🔮 Generating Preview Article for game {example_game_id}...")
+        preview_result = await pipeline.generate_preview_article(example_game_id)
+        
+        print("✅ Preview Article Generated Successfully!")
+        print(f"📊 Metadata: {preview_result['metadata']}")
+        print(f"📄 Content Preview: {preview_result['content'][:200]}...")
+        with open("result/preview_article.txt", "w", encoding="utf-8") as f:
+            f.write(preview_result["content"])
+        
+        # Example 3: Generate Player Spotlight
+        print(f"\n⭐ Generating Player Spotlight for player {example_player_id}...")
+        spotlight_result = await pipeline.generate_player_spotlight(
+            example_player_id, 
+            game_id=example_game_id
+        )
+        
+        print("✅ Player Spotlight Generated Successfully!")
+        print(f"📊 Metadata: {spotlight_result['metadata']}")
+        print(f"📄 Content Preview: {spotlight_result['content'][:200]}...")
+        with open("result/player_spotlight.txt", "w", encoding="utf-8") as f:
+            f.write(spotlight_result["content"])
+        
+        # Get pipeline status
+        print(f"\n📈 Pipeline Status:")
+        status = await pipeline.get_pipeline_status()
+        print(f"   Version: {status['pipeline_version']}")
+        print(f"   Agents: {status['agents']}")
+        print(f"   Last Updated: {status['last_updated']}")
+        
+    except Exception as e:
+        print(f"❌ Error during pipeline execution: {str(e)}")
+        print("💡 Make sure you have valid API keys and network connectivity")
+
+
+def print_pipeline_info():
+    """Print information about the pipeline structure."""
+    print("🏈 SportsScribe Pipeline Structure")
+    print("=" * 50)
+    print("Pipeline Flow: Data Collector → Researcher → Writer")
+    print()
+    print("📋 Available Article Types:")
+    print("   • Game Recap - Post-match analysis and highlights")
+    print("   • Preview Article - Pre-match predictions and analysis")
+    print("   • Player Spotlight - Individual player performance focus")
+    print()
+    print("🔧 Key Features:")
+    print("   • Shared OpenAI client for efficiency")
+    print("   • Helper methods for clean separation of concerns")
+    print("   • Standardized API response structure")
+    print("   • Storyline integration for better content focus")
+    print("   • Centralized error handling")
+    print()
+    print("📊 Data Flow:")
+    print("   1. Data Collector → Raw sports data from API-Football")
+    print("   2. Researcher → Context analysis + Storylines generation")
+    print("   3. Writer → AI-generated article content")
+    print()
 
 
 if __name__ == "__main__":
+    print_pipeline_info()
+    
+    # Run the async main function
     asyncio.run(main()) 

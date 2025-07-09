@@ -1,8 +1,8 @@
 """
-Streamlined Pipeline Orchestrator.
+Pipeline Orchestrator.
 
 This module coordinates the flow between different agents in the SportsScribe pipeline:
-Data Collector → Format Manager → Researcher → Format Manager → Writer
+Data Collector → Researcher → Writer
 """
 
 import logging
@@ -13,7 +13,6 @@ from typing import Any, Dict, Optional, List
 from .data_collector import DataCollectorAgent
 from .researcher import ResearchAgent
 from .writer import WritingAgent
-from .format_manager import FormatManager
 from openai import AsyncOpenAI
 
 from dotenv import load_dotenv
@@ -22,14 +21,15 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
-class AgentPipeline:
-    """Streamlined pipeline orchestrating data flow between agents."""
+class ArticlePipeline:
+    """Orchestrates the complete article generation pipeline."""
 
     def __init__(self):
-        """Initialize the pipeline with all required agents."""
+        """Initialize the pipeline using environment variables."""
         # Get configuration from environment variables
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         self.rapidapi_key = os.getenv("RAPIDAPI_KEY")
+        self.rapidapi_host = os.getenv("RAPIDAPI_HOST", "api-football-v1.p.rapidapi.com")
         self.model = os.getenv("OPENAI_MODEL", "gpt-4")
         self.temperature = float(os.getenv("OPENAI_TEMPERATURE", "0.7"))
         self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "2000"))
@@ -43,6 +43,7 @@ class AgentPipeline:
         config = {
             "openai_api_key": self.openai_api_key,
             "rapidapi_key": self.rapidapi_key,
+            "rapidapi_host": self.rapidapi_host,
             "model": self.model,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens
@@ -50,739 +51,456 @@ class AgentPipeline:
         
         self.openai_client = AsyncOpenAI(api_key=self.openai_api_key)
         
-        # Initialize all agents
+        # Initialize all agents with config only (do not pass openai_client)
         self.collector = DataCollectorAgent(config)
-        self.format_manager = FormatManager(config)
         self.researcher = ResearchAgent(config)
-        self.writer = WritingAgent(config, self.openai_client)
+        self.writer = WritingAgent(config)
         
-        logger.info("AgentPipeline initialized successfully")
+        logger.info("Article Pipeline initialized with environment variables")
 
     async def generate_game_recap(self, game_id: str) -> Dict[str, Any]:
         """Generate a complete game recap article.
         
-        Pipeline: Data Collection → Format Manager → Research → Format Manager → Writer
+        Pipeline: Data Collection → Research → Storyline Generation → Content Writing
         """
         pipeline_start_time = datetime.now()
         logger.info(f"[PIPELINE] Starting game recap generation for game: {game_id}")
         
         try:
             # Step 1: Data Collection
-            logger.info(f"[PIPELINE] Step 1: Collecting game data for {game_id}")
-            raw_game_data = await self._collect_game_data(game_id)
-            if not raw_game_data:
-                raise ValueError(f"Failed to collect data for game {game_id}")
+            logger.info(f"[PIPELINE-COLLECTOR] Step 1: Data Collection for game {game_id}")
+            game_data = await self._collect_game_data(game_id)
+            logger.info(f"[PIPELINE-COLLECTOR] Game data collected successfully for game {game_id}")
             
-            # Log raw data information
-            logger.info(f"[PIPELINE-DATA] Raw game data collected:")
-            logger.info(f"[PIPELINE-DATA]   Type: {type(raw_game_data)}")
-            logger.info(f"[PIPELINE-DATA]   Keys: {list(raw_game_data.keys()) if isinstance(raw_game_data, dict) else 'Not a dict'}")
-            if isinstance(raw_game_data, dict):
-                logger.info(f"[PIPELINE-DATA]   Response count: {raw_game_data.get('response', [])}")
-                logger.info(f"[PIPELINE-DATA]   Errors: {raw_game_data.get('errors', [])}")
-                logger.info(f"[PIPELINE-DATA]   Results: {raw_game_data.get('results', 0)}")
+            team_data = await self._collect_team_data(game_data)
+            logger.info(f"[PIPELINE-COLLECTOR] Team data collected successfully for game {game_id}")
             
-            logger.info(f"[PIPELINE] Raw game data collected successfully")
+            # Step 2: Research & Context
+            logger.info(f"[PIPELINE-RESEARCHER] Step 2: Research & Context for game {game_id}")
+            research_data = await self._research_game_context(game_data, team_data)
+            logger.info(f"[PIPELINE-RESEARCHER] Research completed successfully for game {game_id}")
             
-            # Step 1.5: Extract team and player information
-            logger.info(f"[PIPELINE] Step 1.5: Extracting team and player information")
-            team_info = self.extract_team_info(raw_game_data)
-            player_info = self.extract_player_info(raw_game_data)
+            # Step 3: Storyline Generation
+            logger.info(f"[PIPELINE-RESEARCHER] Step 3: Storyline Generation for game {game_id}")
+            data_list = [game_data]
+            if team_data.get("home_team"):
+                data_list.append(team_data["home_team"])
+                logger.debug(f"[PIPELINE-RESEARCHER] Added home team data to storyline generation")
+            if team_data.get("away_team"):
+                data_list.append(team_data["away_team"])
+                logger.debug(f"[PIPELINE-RESEARCHER] Added away team data to storyline generation")
             
-            # Log extracted information
-            logger.info(f"[PIPELINE-DATA] Team info extracted:")
-            logger.info(f"[PIPELINE-DATA]   Type: {type(team_info)}")
-            if isinstance(team_info, dict) and "error" not in team_info:
-                home_team = team_info.get("home_team", {}).get("name", "Unknown")
-                away_team = team_info.get("away_team", {}).get("name", "Unknown")
-                logger.info(f"[PIPELINE-DATA]   Teams: {home_team} vs {away_team}")
-                logger.info(f"[PIPELINE-DATA]   League: {team_info.get('league', {}).get('name', 'Unknown')}")
-            else:
-                logger.warning(f"[PIPELINE-DATA]   Team info error: {team_info.get('error', 'Unknown error')}")
+            storylines = await self._generate_storylines(data_list)
+            logger.info(f"[PIPELINE-RESEARCHER] Generated {len(storylines)} storylines for game {game_id}")
+            logger.info(f"[PIPELINE-RESEARCHER] Storylines for game {game_id}: {storylines}")
+            logger.debug(f"[PIPELINE-RESEARCHER] Storylines: {storylines[:3]}...")  # Log first 3 storylines
             
-            logger.info(f"[PIPELINE-DATA] Player info extracted:")
-            logger.info(f"[PIPELINE-DATA]   Type: {type(player_info)}")
-            if isinstance(player_info, dict) and "error" not in player_info:
-                total_players = len(player_info.get("all_players", {}))
-                key_players = len(player_info.get("key_players", []))
-                logger.info(f"[PIPELINE-DATA]   Total players: {total_players}")
-                logger.info(f"[PIPELINE-DATA]   Key players: {key_players}")
-            else:
-                logger.warning(f"[PIPELINE-DATA]   Player info error: {player_info.get('error', 'Unknown error')}")
-            
-            logger.info(f"[PIPELINE] Team and player information extracted successfully")
-            
-            # Step 1.6: Collect enhanced team and player data using data collector
-            logger.info(f"[PIPELINE] Step 1.6: Collecting enhanced team and player data")
-            enhanced_team_data = await self.collect_enhanced_team_data(team_info)
-            season = None
-            try:
-                response_list = raw_game_data.get("response", [])
-                if response_list and isinstance(response_list, list):
-                    season = response_list[0].get("league", {}).get("season")
-            except Exception as e:
-                logger.warning(f"[PIPELINE] Failed to extract season: {e}")
-            enhanced_player_data = await self.collect_enhanced_player_data(player_info, season)
-            
-            # Log enhanced data collection
-            logger.info(f"[PIPELINE-DATA] Enhanced team data collected:")
-            logger.info(f"[PIPELINE-DATA]   Type: {type(enhanced_team_data)}")
-            if isinstance(enhanced_team_data, dict) and "error" not in enhanced_team_data:
-                enhanced_data = enhanced_team_data.get("enhanced_data", {})
-                home_detailed = "home_team_detailed" in enhanced_data
-                away_detailed = "away_team_detailed" in enhanced_data
-                logger.info(f"[PIPELINE-DATA]   Home team detailed: {home_detailed}")
-                logger.info(f"[PIPELINE-DATA]   Away team detailed: {away_detailed}")
-            else:
-                logger.warning(f"[PIPELINE-DATA]   Enhanced team data error: {enhanced_team_data.get('error', 'Unknown error')}")
-            
-            logger.info(f"[PIPELINE-DATA] Enhanced player data collected:")
-            logger.info(f"[PIPELINE-DATA]   Type: {type(enhanced_player_data)}")
-            if isinstance(enhanced_player_data, dict) and "error" not in enhanced_player_data:
-                enhanced_key_players = len(enhanced_player_data.get("enhanced_key_players", []))
-                sample_players = len(enhanced_player_data.get("sample_players_detailed", []))
-                logger.info(f"[PIPELINE-DATA]   Enhanced key players: {enhanced_key_players}")
-                logger.info(f"[PIPELINE-DATA]   Sample players detailed: {sample_players}")
-            else:
-                logger.warning(f"[PIPELINE-DATA]   Enhanced player data error: {enhanced_player_data.get('error', 'Unknown error')}")
-            
-            logger.info(f"[PIPELINE] Enhanced team and player data collected successfully")
-            
-            # Step 2: Format Manager - Convert raw data for researcher
-            logger.info(f"[PIPELINE] Step 2: Format Manager converting data for research")
-            formatted_for_research = await self.format_manager.prepare_data_for_researcher(
-                raw_game_data, "game_analysis"
-            )
-            
-            # Add enhanced team and player information to formatted data
-            if isinstance(formatted_for_research, dict) and "error" not in formatted_for_research:
-                formatted_for_research["team_info"] = enhanced_team_data
-                formatted_for_research["player_info"] = enhanced_player_data
-                logger.info(f"[PIPELINE] Added enhanced team and player info to formatted research data")
-            else:
-                logger.warning(f"[PIPELINE] Could not add enhanced team/player info to formatted data due to error")
-            
-            # Log formatted research data information
-            logger.info(f"[PIPELINE-DATA] Formatted research data:")
-            logger.info(f"[PIPELINE-DATA]   Type: {type(formatted_for_research)}")
-            logger.info(f"[PIPELINE-DATA]   Keys: {list(formatted_for_research.keys()) if isinstance(formatted_for_research, dict) else 'Not a dict'}")
-            if isinstance(formatted_for_research, dict):
-                if "error" in formatted_for_research:
-                    logger.warning(f"[PIPELINE-DATA]   Error in formatted data: {formatted_for_research['error']}")
-                if "game_data" in formatted_for_research:
-                    game_data = formatted_for_research["game_data"]
-                    logger.info(f"[PIPELINE-DATA]   Game data keys: {list(game_data.keys()) if isinstance(game_data, dict) else 'Not a dict'}")
-                    if isinstance(game_data, dict):
-                        logger.info(f"[PIPELINE-DATA]   Home team: {game_data.get('home_team', 'Unknown')}")
-                        logger.info(f"[PIPELINE-DATA]   Away team: {game_data.get('away_team', 'Unknown')}")
-                        logger.info(f"[PIPELINE-DATA]   Score: {game_data.get('home_score', 0)}-{game_data.get('away_score', 0)}")
-                if "team_info" in formatted_for_research:
-                    logger.info(f"[PIPELINE-DATA]   Team info included: {bool(formatted_for_research['team_info'])}")
-                if "player_info" in formatted_for_research:
-                    logger.info(f"[PIPELINE-DATA]   Player info included: {bool(formatted_for_research['player_info'])}")
-            
-            logger.info(f"[PIPELINE] Data formatted for research successfully")
-            
-            # Step 3: Research and generate storylines
-            logger.info(f"[PIPELINE] Step 3: Conducting research and generating storylines")
-            research_data = await self.researcher.analyze_game_data(formatted_for_research)
-            logger.info(f"[PIPELINE-DATA] Researcher game_analysis output:")
-            if isinstance(research_data, list):
-                for i, item in enumerate(research_data):
-                    logger.info(f"[PIPELINE-DATA]   GameAnalysis {i+1}: {item}")
-
-            # Step 3.1: Analyze historical context between teams
-            logger.info(f"[PIPELINE] Step 3.1: Analyzing historical context between teams")
-            historical_context = await self.researcher.get_history_from_team_data(enhanced_team_data)
-            logger.info(f"[PIPELINE-DATA] Researcher historical_context output:")
-            if isinstance(historical_context, list):
-                for i, item in enumerate(historical_context):
-                    logger.info(f"[PIPELINE-DATA]   History {i+1}: {item}")
-
-            # Step 3.2: Analyze individual player performances
-            logger.info(f"[PIPELINE] Step 3.2: Analyzing individual player performances")
-            player_performance_analysis = await self.researcher.get_performance_from_player_game_data(enhanced_player_data, formatted_for_research)
-            logger.info(f"[PIPELINE-DATA] Researcher player_performance output:")
-            if isinstance(player_performance_analysis, list):
-                for i, item in enumerate(player_performance_analysis):
-                    logger.info(f"[PIPELINE-DATA]   Performance {i+1}: {item}")
-
-            # Step 3.3: Generate comprehensive storylines
-            logger.info(f"[PIPELINE] Step 3.3: Generating comprehensive storylines")
-            storylines = await self.researcher.generate_storylines([formatted_for_research])
-            logger.info(f"[PIPELINE-DATA] Researcher storylines output:")
-            if isinstance(storylines, list):
-                for i, item in enumerate(storylines):
-                    logger.info(f"[PIPELINE-DATA]   Storyline {i+1}: {item}")
-            
-            # Combine all research data into a comprehensive structure
-            comprehensive_research_data = {
-                "game_analysis": research_data,
-                "historical_context": historical_context,
-                "player_performance": player_performance_analysis,
-                "storylines": storylines,
-                "team_info": enhanced_team_data,
-                "player_info": enhanced_player_data
-            }
-            
-            # Log research data information
-            logger.info(f"[PIPELINE-DATA] Research data:")
-            logger.info(f"[PIPELINE-DATA]   Type: {type(research_data)}")
-            if hasattr(research_data, 'model_dump'):
-                research_dict = research_data.model_dump()
-                logger.info(f"[PIPELINE-DATA]   Research keys: {list(research_dict.keys())}")
-                logger.info(f"[PIPELINE-DATA]   Storylines count: {len(research_dict.get('storylines', []))}")
-                logger.info(f"[PIPELINE-DATA]   Key events count: {len(research_dict.get('key_events', []))}")
-            elif isinstance(research_data, dict):
-                logger.info(f"[PIPELINE-DATA]   Research keys: {list(research_data.keys())}")
-                logger.info(f"[PIPELINE-DATA]   Storylines count: {len(research_data.get('storylines', []))}")
-            
-            # Log historical context information
-            logger.info(f"[PIPELINE-DATA] Historical context:")
-            logger.info(f"[PIPELINE-DATA]   Type: {type(historical_context)}")
-            if isinstance(historical_context, dict):
-                logger.info(f"[PIPELINE-DATA]   Historical keys: {list(historical_context.keys())}")
-                logger.info(f"[PIPELINE-DATA]   Historical storylines: {len(historical_context.get('storylines', []))}")
-                logger.info(f"[PIPELINE-DATA]   Total matches: {historical_context.get('total_matches', 0)}")
-            
-            # Log player performance analysis information
-            logger.info(f"[PIPELINE-DATA] Player performance analysis:")
-            logger.info(f"[PIPELINE-DATA]   Type: {type(player_performance_analysis)}")
-            if isinstance(player_performance_analysis, dict):
-                logger.info(f"[PIPELINE-DATA]   Performance keys: {list(player_performance_analysis.keys())}")
-                logger.info(f"[PIPELINE-DATA]   Player storylines: {len(player_performance_analysis.get('storylines', []))}")
-            
-            # Log comprehensive research data
-            logger.info(f"[PIPELINE-DATA] Comprehensive research data:")
-            logger.info(f"[PIPELINE-DATA]   Type: {type(comprehensive_research_data)}")
-            logger.info(f"[PIPELINE-DATA]   Keys: {list(comprehensive_research_data.keys())}")
-            
-            # Log storylines information
-            logger.info(f"[PIPELINE-DATA] Generated storylines:")
-            logger.info(f"[PIPELINE-DATA]   Type: {type(storylines)}")
-            logger.info(f"[PIPELINE-DATA]   Count: {len(storylines) if isinstance(storylines, list) else 'Not a list'}")
-            if isinstance(storylines, list):
-                for i, storyline in enumerate(storylines[:3]):  # Log first 3 storylines
-                    logger.info(f"[PIPELINE-DATA]   Storyline {i+1}: {storyline[:100]}...")
-            
-            logger.info(f"[PIPELINE] Research completed, generated {len(storylines)} storylines with historical context and player analysis")
-            
-            # Step 4: Format Manager - Convert data for writer
-            logger.info(f"[PIPELINE] Step 4: Format Manager converting data for writing")
-            formatted_for_writer = await self.format_manager.prepare_data_for_writer(
-                raw_game_data, comprehensive_research_data, "game_recap"
-            )
-            
-            # Add enhanced team and player information to writer data
-            if isinstance(formatted_for_writer, dict) and "error" not in formatted_for_writer:
-                formatted_for_writer["team_info"] = enhanced_team_data
-                formatted_for_writer["player_info"] = enhanced_player_data
-                logger.info(f"[PIPELINE] Added enhanced team and player info to formatted writer data")
-            
-            # Log formatted writer data information
-            logger.info(f"[PIPELINE-DATA] Formatted writer data:")
-            logger.info(f"[PIPELINE-DATA]   Type: {type(formatted_for_writer)}")
-            logger.info(f"[PIPELINE-DATA]   Keys: {list(formatted_for_writer.keys()) if isinstance(formatted_for_writer, dict) else 'Not a dict'}")
-            if isinstance(formatted_for_writer, dict):
-                if "error" in formatted_for_writer:
-                    logger.warning(f"[PIPELINE-DATA]   Error in writer data: {formatted_for_writer['error']}")
-                if "data" in formatted_for_writer:
-                    logger.info(f"[PIPELINE-DATA]   Data keys: {list(formatted_for_writer['data'].keys()) if isinstance(formatted_for_writer['data'], dict) else 'Not a dict'}")
-                if "research" in formatted_for_writer:
-                    logger.info(f"[PIPELINE-DATA]   Research keys: {list(formatted_for_writer['research'].keys()) if isinstance(formatted_for_writer['research'], dict) else 'Not a dict'}")
-                if "storylines" in formatted_for_writer:
-                    logger.info(f"[PIPELINE-DATA]   Writer storylines count: {len(formatted_for_writer['storylines'])}")
-                if "team_info" in formatted_for_writer:
-                    logger.info(f"[PIPELINE-DATA]   Team info included in writer data: {bool(formatted_for_writer['team_info'])}")
-                if "player_info" in formatted_for_writer:
-                    logger.info(f"[PIPELINE-DATA]   Player info included in writer data: {bool(formatted_for_writer['player_info'])}")
-            
-            logger.info(f"[PIPELINE] Data formatted for writing successfully")
-            
-            # Step 5: Generate article content
-            logger.info(f"[PIPELINE] Step 5: Generating article content")
+            # Step 4: Content Generation
+            logger.info(f"[PIPELINE-WRITER] Step 4: Content Generation for game {game_id}")
             article_content = await self.writer.generate_game_recap(
-                formatted_for_writer, comprehensive_research_data, storylines
+                game_data, research_data, storylines
+            )
+            logger.info(f"[PIPELINE-WRITER] Article content generated successfully for game {game_id}")
+            logger.debug(f"[PIPELINE-WRITER] Article length: {len(article_content)} characters")
+            
+            # Step 5: Return Results
+            logger.info(f"[PIPELINE] Step 5: Formatting results for game {game_id}")
+            result = self._format_result(
+                content=article_content,
+                metadata={
+                    "game_id": game_id,
+                    "article_type": "recap",
+                    "source_data": game_data,
+                    "storylines": storylines,
+                    "generated_at": datetime.now().isoformat()
+                }
             )
             
-            # Log article content information
-            logger.info(f"[PIPELINE-DATA] Generated article:")
-            logger.info(f"[PIPELINE-DATA]   Type: {type(article_content)}")
-            logger.info(f"[PIPELINE-DATA]   Length: {len(article_content) if isinstance(article_content, str) else 'Not a string'}")
-            if isinstance(article_content, str):
-                logger.info(f"[PIPELINE-DATA]   Preview: {article_content[:200]}...")
-            
-            logger.info(f"[PIPELINE] Article content generated successfully")
-            
-            # Step 6: Return results
             pipeline_duration = (datetime.now() - pipeline_start_time).total_seconds()
-            logger.info(f"[PIPELINE] Game recap generation completed in {pipeline_duration:.2f} seconds")
+            logger.info(f"[PIPELINE] Game recap generation completed successfully for game {game_id} in {pipeline_duration:.2f} seconds")
             
-            return {
-                "success": True,
-                "game_id": game_id,
-                "article_type": "game_recap",
-                "content": article_content,
-                "storylines": storylines,
-                "team_info": enhanced_team_data,
-                "player_info": enhanced_player_data,
-                "research_data": comprehensive_research_data,
-                "historical_context": historical_context,
-                "player_performance_analysis": player_performance_analysis,
-                "metadata": {
-                    "generated_at": datetime.now().isoformat(),
-                    "pipeline_duration": pipeline_duration,
-                    "data_sources": ["rapidapi_football"],
-                    "model_used": self.model,
-                    "format_manager_used": True,
-                    "team_info_extracted": "error" not in team_info,
-                    "player_info_extracted": "error" not in player_info,
-                    "enhanced_team_data_collected": "error" not in enhanced_team_data,
-                    "enhanced_player_data_collected": "error" not in enhanced_player_data,
-                    "historical_context_analyzed": "error" not in historical_context,
-                    "player_performance_analyzed": "error" not in player_performance_analysis,
-                    "comprehensive_storylines_generated": len(storylines) > 0
-                }
-            }
+            return result
             
         except Exception as e:
             pipeline_duration = (datetime.now() - pipeline_start_time).total_seconds()
             logger.error(f"[PIPELINE] Error generating game recap for {game_id} after {pipeline_duration:.2f} seconds: {str(e)}")
-            return {
-                "success": False,
-                "game_id": game_id,
-                "error": str(e),
-                "research_data": {
-                    "game_analysis": None,
-                    "historical_context": None,
-                    "player_performance": None,
-                    "storylines": [],
-                    "team_info": None,
-                    "player_info": None
-                },
-                "metadata": {
-                    "generated_at": datetime.now().isoformat(),
-                    "pipeline_duration": pipeline_duration,
-                    "data_sources": ["rapidapi_football"],
-                    "model_used": self.model,
-                    "error_occurred": True,
-                    "error_step": "pipeline_execution"
-                }
-            }
-
-    async def _collect_game_data(self, game_id: str) -> Dict[str, Any]:
-        """Collect game data using the data collector agent."""
-        try:
-            logger.info(f"[PIPELINE] Collecting game data for {game_id}")
-            data = await self.collector.collect_game_data(game_id)
-            logger.info(f"[PIPELINE] Game data collected successfully")
-            return data
-        except Exception as e:
-            logger.error(f"[PIPELINE] Failed to collect game data: {e}")
             raise
 
-    def extract_team_info(self, raw_game_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract team information from raw game data.
+    async def generate_preview_article(self, game_id: str) -> Dict[str, Any]:
+        """Generate a game preview article.
         
-        Args:
-            raw_game_data: Raw game data from API response
-            
-        Returns:
-            Dictionary containing extracted team information
+        Pipeline: Data Collection → Research → Storyline Generation → Content Writing
         """
+        pipeline_start_time = datetime.now()
+        logger.info(f"[PIPELINE] Starting preview generation for game: {game_id}")
+        
         try:
-            logger.info("[PIPELINE] Extracting team information from raw game data")
+            # Step 1: Data Collection
+            logger.info(f"[PIPELINE-COLLECTOR] Step 1: Data Collection for preview game {game_id}")
+            game_data = await self._collect_game_data(game_id)
+            logger.info(f"[PIPELINE-COLLECTOR] Game data collected successfully for preview game {game_id}")
             
-            # Extract response data
-            response_list = raw_game_data.get("response", [])
-            if not response_list:
-                logger.warning("[PIPELINE] No response data found in raw_game_data")
-                return {"error": "No response data available"}
+            # Step 2: Research & Context
+            logger.info(f"[PIPELINE-RESEARCHER] Step 2: Research & Context for preview game {game_id}")
+            research_data = await self._research_game_context(game_data)
+            logger.info(f"[PIPELINE-RESEARCHER] Research completed successfully for preview game {game_id}")
             
-            fixture_data = response_list[0]
-            teams = fixture_data.get("teams", {})
+            # Step 3: Storyline Generation
+            logger.info(f"[PIPELINE-RESEARCHER] Step 3: Storyline Generation for preview game {game_id}")
+            storylines = await self._generate_storylines([game_data])
+            logger.info(f"[PIPELINE-RESEARCHER] Generated {len(storylines)} storylines for preview game {game_id}")
+            logger.info(f"[PIPELINE-RESEARCHER] Preview storylines for game {game_id}: {storylines}")
+            logger.debug(f"[PIPELINE-RESEARCHER] Preview storylines: {storylines[:3]}...")  # Log first 3 storylines
             
-            # Extract home team info
-            home_team = teams.get("home", {})
-            home_team_info = {
-                "id": home_team.get("id"),
-                "name": home_team.get("name"),
-                "logo": home_team.get("logo"),
-                "winner": home_team.get("winner")
-            }
+            # Step 4: Content Generation
+            logger.info(f"[PIPELINE-WRITER] Step 4: Content Generation for preview game {game_id}")
+            article_content = await self.writer.generate_preview_article(
+                game_data, research_data, storylines
+            )
+            logger.info(f"[PIPELINE-WRITER] Preview article content generated successfully for game {game_id}")
+            logger.debug(f"[PIPELINE-WRITER] Preview article length: {len(article_content)} characters")
             
-            # Extract away team info
-            away_team = teams.get("away", {})
-            away_team_info = {
-                "id": away_team.get("id"),
-                "name": away_team.get("name"),
-                "logo": away_team.get("logo"),
-                "winner": away_team.get("winner")
-            }
+            # Step 5: Return Results
+            logger.info(f"[PIPELINE] Step 5: Formatting preview results for game {game_id}")
+            result = self._format_result(
+                content=article_content,
+                metadata={
+                    "game_id": game_id,
+                    "article_type": "preview",
+                    "source_data": game_data,
+                    "storylines": storylines,
+                    "generated_at": datetime.now().isoformat()
+                }
+            )
             
-            # Extract league info
-            league = fixture_data.get("league", {})
-            league_info = {
-                "id": league.get("id"),
-                "name": league.get("name"),
-                "country": league.get("country"),
-                "logo": league.get("logo"),
-                "flag": league.get("flag"),
-                "season": league.get("season"),
-                "round": league.get("round")
-            }
+            pipeline_duration = (datetime.now() - pipeline_start_time).total_seconds()
+            logger.info(f"[PIPELINE] Preview generation completed successfully for game {game_id} in {pipeline_duration:.2f} seconds")
             
-            # Extract lineup information if available
-            lineups = fixture_data.get("lineups", [])
-            home_lineup = None
-            away_lineup = None
-            
-            for lineup in lineups:
-                team_id = lineup.get("team", {}).get("id")
-                if team_id == home_team_info["id"]:
-                    home_lineup = {
-                        "formation": lineup.get("formation"),
-                        "coach": lineup.get("coach", {}).get("name"),
-                        "startXI": lineup.get("startXI", []),
-                        "substitutes": lineup.get("substitutes", [])
-                    }
-                elif team_id == away_team_info["id"]:
-                    away_lineup = {
-                        "formation": lineup.get("formation"),
-                        "coach": lineup.get("coach", {}).get("name"),
-                        "startXI": lineup.get("startXI", []),
-                        "substitutes": lineup.get("substitutes", [])
-                    }
-            
-            team_info = {
-                "home_team": home_team_info,
-                "away_team": away_team_info,
-                "league": league_info,
-                "season": league_info.get("season"),
-                "home_lineup": home_lineup,
-                "away_lineup": away_lineup
-            }
-            
-            logger.info(f"[PIPELINE] Successfully extracted team info for {home_team_info['name']} vs {away_team_info['name']}")
-            return team_info
+            return result
             
         except Exception as e:
-            logger.error(f"[PIPELINE] Error extracting team info: {e}")
-            return {"error": f"Failed to extract team info: {str(e)}"}
+            pipeline_duration = (datetime.now() - pipeline_start_time).total_seconds()
+            logger.error(f"[PIPELINE] Error generating preview for {game_id} after {pipeline_duration:.2f} seconds: {str(e)}")
+            raise
 
-    def extract_player_info(self, raw_game_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract player information from raw game data.
+    async def generate_player_spotlight(self, player_id: str, game_id: Optional[str] = None) -> Dict[str, Any]:
+        """Generate a player spotlight article.
         
-        Args:
-            raw_game_data: Raw game data from API response
-            
-        Returns:
-            Dictionary containing extracted player information
+        Pipeline: Data Collection → Research → Storyline Generation → Content Writing
         """
+        pipeline_start_time = datetime.now()
+        context_info = f"player {player_id}"
+        if game_id:
+            context_info += f" in game {game_id}"
+        logger.info(f"[PIPELINE] Starting player spotlight generation for {context_info}")
+        
         try:
-            logger.info("[PIPELINE] Extracting player information from raw game data")
+            # Step 1: Data Collection
+            logger.info(f"[PIPELINE-COLLECTOR] Step 1: Data Collection for player {player_id}")
+            player_data = await self._collect_player_data(player_id)
+            logger.info(f"[PIPELINE-COLLECTOR] Player data collected successfully for player {player_id}")
             
-            # Extract response data
-            response_list = raw_game_data.get("response", [])
-            if not response_list:
-                logger.warning("[PIPELINE] No response data found in raw_game_data")
-                return {"error": "No response data available"}
+            # Step 2: Research & Context
+            logger.info(f"[PIPELINE-RESEARCHER] Step 2: Research & Context for player {player_id}")
+            performance_data = await self._research_player_performance(player_id, game_id)
+            logger.info(f"[PIPELINE-RESEARCHER] Research completed successfully for player {player_id}")
             
-            fixture_data = response_list[0]
+            # Step 3: Storyline Generation
+            logger.info(f"[PIPELINE-RESEARCHER] Step 3: Storyline Generation for player {player_id}")
+            storylines = await self._generate_storylines([player_data])
+            logger.info(f"[PIPELINE-RESEARCHER] Generated {len(storylines)} storylines for player {player_id}")
+            logger.info(f"[PIPELINE-RESEARCHER] Player storylines for player {player_id}: {storylines}")
+            logger.debug(f"[PIPELINE-RESEARCHER] Player storylines: {storylines[:3]}...")  # Log first 3 storylines
             
-            # Extract events (goals, cards, substitutions)
-            events = fixture_data.get("events", [])
-            player_events = {}
+            # Step 4: Content Generation
+            logger.info(f"[PIPELINE-WRITER] Step 4: Content Generation for player {player_id}")
+            article_content = await self.writer.generate_player_spotlight(
+                player_data, performance_data, storylines
+            )
+            logger.info(f"[PIPELINE-WRITER] Player spotlight content generated successfully for player {player_id}")
+            logger.debug(f"[PIPELINE-WRITER] Player spotlight length: {len(article_content)} characters")
             
-            for event in events:
-                player = event.get("player", {})
-                player_id = player.get("id")
-                player_name = player.get("name")
-                
-                if player_id and player_name:
-                    if player_id not in player_events:
-                        player_events[player_id] = {
-                            "id": player_id,
-                            "name": player_name,
-                            "team": event.get("team", {}).get("name"),
-                            "team_id": event.get("team", {}).get("id"),
-                            "events": []
-                        }
-                    
-                    player_events[player_id]["events"].append({
-                        "type": event.get("type"),
-                        "detail": event.get("detail"),
-                        "time": event.get("time", {}).get("elapsed"),
-                        "assist": event.get("assist", {}).get("name") if event.get("assist") else None
-                    })
+            # Step 5: Return Results
+            logger.info(f"[PIPELINE] Step 5: Formatting player spotlight results for player {player_id}")
+            result = self._format_result(
+                content=article_content,
+                metadata={
+                    "player_id": player_id,
+                    "game_id": game_id,
+                    "article_type": "spotlight",
+                    "source_data": player_data,
+                    "storylines": storylines,
+                    "generated_at": datetime.now().isoformat()
+                }
+            )
             
-            # Extract lineup information for all players
-            lineups = fixture_data.get("lineups", [])
-            all_players = {}
+            pipeline_duration = (datetime.now() - pipeline_start_time).total_seconds()
+            logger.info(f"[PIPELINE] Player spotlight generation completed successfully for {context_info} in {pipeline_duration:.2f} seconds")
             
-            for lineup in lineups:
-                team_name = lineup.get("team", {}).get("name")
-                team_id = lineup.get("team", {}).get("id")
-                
-                # Process starting XI
-                for player_data in lineup.get("startXI", []):
-                    player = player_data.get("player", {})
-                    player_id = player.get("id")
-                    if player_id:
-                        all_players[player_id] = {
-                            "id": player_id,
-                            "name": player.get("name"),
-                            "number": player.get("number"),
-                            "position": player.get("pos"),
-                            "team": team_name,
-                            "team_id": team_id,
-                            "status": "started",
-                            "formation_position": player.get("grid")
-                        }
-                
-                # Process substitutes
-                for player_data in lineup.get("substitutes", []):
-                    player = player_data.get("player", {})
-                    player_id = player.get("id")
-                    if player_id:
-                        all_players[player_id] = {
-                            "id": player_id,
-                            "name": player.get("name"),
-                            "number": player.get("number"),
-                            "position": player.get("pos"),
-                            "team": team_name,
-                            "team_id": team_id,
-                            "status": "substitute",
-                            "formation_position": None
-                        }
-            
-            # Merge event data with player data
-            for player_id, player_data in all_players.items():
-                if player_id in player_events:
-                    player_data["match_events"] = player_events[player_id]["events"]
-                else:
-                    player_data["match_events"] = []
-            
-            # Separate players by team
-            home_team_id = fixture_data.get("teams", {}).get("home", {}).get("id")
-            away_team_id = fixture_data.get("teams", {}).get("away", {}).get("id")
-            
-            home_players = {pid: pdata for pid, pdata in all_players.items() 
-                          if pdata.get("team_id") == home_team_id}
-            away_players = {pid: pdata for pid, pdata in all_players.items() 
-                          if pdata.get("team_id") == away_team_id}
-            
-            player_info = {
-                "home_players": home_players,
-                "away_players": away_players,
-                "all_players": all_players,
-                "key_players": self._identify_key_players(all_players, events)
-            }
-            
-            logger.info(f"[PIPELINE] Successfully extracted player info for {len(all_players)} players")
-            return player_info
+            return result
             
         except Exception as e:
-            logger.error(f"[PIPELINE] Error extracting player info: {e}")
-            return {"error": f"Failed to extract player info: {str(e)}"}
+            pipeline_duration = (datetime.now() - pipeline_start_time).total_seconds()
+            logger.error(f"[PIPELINE] Error generating player spotlight for {context_info} after {pipeline_duration:.2f} seconds: {str(e)}")
+            raise
 
-    def _identify_key_players(self, all_players: Dict[str, Any], events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Identify key players based on match events.
+    # Helper methods for data collection
+    async def _collect_game_data(self, game_id: str) -> Dict[str, Any]:
+        """Collect game data and validate response."""
+        logger.debug(f"[HELPER-COLLECTOR] Collecting game data for game {game_id}")
         
-        Args:
-            all_players: Dictionary of all players
-            events: List of match events
-            
-        Returns:
-            List of key players with their achievements
-        """
-        key_players = []
-        
-        for event in events:
-            if event.get("type") in ["Goal", "Card"]:
-                player = event.get("player", {})
-                player_id = player.get("id")
-                
-                if player_id and player_id in all_players:
-                    player_data = all_players[player_id].copy()
-                    player_data["key_achievement"] = {
-                        "type": event.get("type"),
-                        "detail": event.get("detail"),
-                        "time": event.get("time", {}).get("elapsed")
-                    }
-                    key_players.append(player_data)
-        
-        return key_players
-
-    async def collect_enhanced_team_data(self, team_info: Dict[str, Any]) -> Dict[str, Any]:
-        """Collect enhanced team data using data collector.
-        
-        Args:
-            team_info: Basic team information extracted from game data
-            
-        Returns:
-            Dictionary containing enhanced team data
-        """
         try:
-            logger.info("[PIPELINE] Collecting enhanced team data")
+            game_data = await self.collector.collect_game_data(game_id)
+            logger.info(f"[HELPER-COLLECTOR] Raw game data for {game_id}: {repr(game_data)[:1000]}")
+        except Exception as e:
+            error_msg = f"Failed to collect game data for game {game_id}: {str(e)}"
+            logger.error(f"[HELPER-COLLECTOR] {error_msg}")
+            raise ValueError(error_msg) from e
+        
+        if not game_data:
+            error_msg = f"No data returned for game {game_id}"
+            logger.error(f"[HELPER-COLLECTOR] {error_msg}")
+            raise ValueError(error_msg)
+        
+        if game_data.get("errors"):
+            error_msg = f"API errors for game {game_id}: {game_data.get('errors', [])}"
+            logger.error(f"[HELPER-COLLECTOR] {error_msg}")
+            raise ValueError(error_msg)
+        
+        logger.debug(f"[HELPER-COLLECTOR] Game data collected successfully for game {game_id}")
+        return game_data
+
+    async def _collect_team_data(self, game_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Collect team data for both teams in the game."""
+        logger.debug(f"[HELPER-COLLECTOR] Extracting team data from game data")
+        
+        try:
+            fixture_response = game_data.get("response", [{}])[0].get("fixture", {}).get("response", [])
+            if not fixture_response:
+                logger.warning(f"[HELPER-COLLECTOR] No fixture response found in game data")
+                return {"home_team": None, "away_team": None}
             
-            enhanced_team_data = {
-                "home_team": team_info.get("home_team", {}),
-                "away_team": team_info.get("away_team", {}),
-                "league": team_info.get("league", {}),
-                "home_lineup": team_info.get("home_lineup", {}),
-                "away_lineup": team_info.get("away_lineup", {}),
-                "enhanced_data": {}
-            }
+            fixture = fixture_response[0]
+            home_team_id = fixture.get("teams", {}).get("home", {}).get("id")
+            away_team_id = fixture.get("teams", {}).get("away", {}).get("id")
             
-            # Collect detailed data for home team
-            home_team_id = team_info.get("home_team", {}).get("id")
+            logger.debug(f"[HELPER-COLLECTOR] Extracted team IDs - Home: {home_team_id}, Away: {away_team_id}")
+            
+            # Collect home team data
+            home_team_data = None
             if home_team_id:
+                logger.debug(f"[HELPER-COLLECTOR] Collecting home team data for team {home_team_id}")
                 try:
-                    logger.info(f"[PIPELINE] Collecting detailed data for home team {home_team_id}")
-                    home_team_detailed = await self.collector.collect_team_data(str(home_team_id))
-                    enhanced_team_data["enhanced_data"]["home_team_detailed"] = home_team_detailed
-                    logger.info(f"[PIPELINE] Successfully collected home team detailed data")
+                    home_team_data = await self.collector.collect_team_data(str(home_team_id))
+                    logger.debug(f"[HELPER-COLLECTOR] Home team data collected for team {home_team_id}")
                 except Exception as e:
-                    logger.warning(f"[PIPELINE] Failed to collect home team detailed data: {e}")
-                    enhanced_team_data["enhanced_data"]["home_team_detailed"] = {"error": str(e)}
+                    logger.warning(f"[HELPER-COLLECTOR] Failed to collect home team data for team {home_team_id}: {str(e)}")
+                    home_team_data = None
+            else:
+                logger.warning(f"[HELPER-COLLECTOR] No home team ID found")
             
-            # Collect detailed data for away team
-            away_team_id = team_info.get("away_team", {}).get("id")
+            # Collect away team data
+            away_team_data = None
             if away_team_id:
+                logger.debug(f"[HELPER-COLLECTOR] Collecting away team data for team {away_team_id}")
                 try:
-                    logger.info(f"[PIPELINE] Collecting detailed data for away team {away_team_id}")
-                    away_team_detailed = await self.collector.collect_team_data(str(away_team_id))
-                    enhanced_team_data["enhanced_data"]["away_team_detailed"] = away_team_detailed
-                    logger.info(f"[PIPELINE] Successfully collected away team detailed data")
+                    away_team_data = await self.collector.collect_team_data(str(away_team_id))
+                    logger.debug(f"[HELPER-COLLECTOR] Away team data collected for team {away_team_id}")
                 except Exception as e:
-                    logger.warning(f"[PIPELINE] Failed to collect away team detailed data: {e}")
-                    enhanced_team_data["enhanced_data"]["away_team_detailed"] = {"error": str(e)}
+                    logger.warning(f"[HELPER-COLLECTOR] Failed to collect away team data for team {away_team_id}: {str(e)}")
+                    away_team_data = None
+            else:
+                logger.warning(f"[HELPER-COLLECTOR] No away team ID found")
             
-            logger.info("[PIPELINE] Enhanced team data collection completed")
-            return enhanced_team_data
-            
-        except Exception as e:
-            logger.error(f"[PIPELINE] Error collecting enhanced team data: {e}")
-            return {"error": f"Failed to collect enhanced team data: {str(e)}"}
-
-    async def collect_enhanced_player_data(self, player_info: Dict[str, Any], season: str) -> Dict[str, Any]:
-        """Collect enhanced player data using data collector.
-        
-        Args:
-            player_info: Basic player information extracted from game data
-            
-        Returns:
-            Dictionary containing enhanced player data
-        """
-        try:
-            logger.info("[PIPELINE] Collecting enhanced player data")
-            
-            enhanced_player_data = {
-                "home_players": player_info.get("home_players", {}),
-                "away_players": player_info.get("away_players", {}),
-                "all_players": player_info.get("all_players", {}),
-                "key_players": player_info.get("key_players", []),
-                "enhanced_data": {}
+            result = {
+                "home_team": home_team_data,
+                "away_team": away_team_data,
+                "home_team_id": home_team_id,
+                "away_team_id": away_team_id,
+                "fixture": fixture
             }
             
-            # Collect detailed data for key players (limit to top 5 to avoid too many API calls)
-            key_players = player_info.get("key_players", [])
-            enhanced_key_players = []
-            
-            if not season:
-                logger.warning("[PIPELINE] Season not found, cannot collect enhanced player data.")
-                return {"error": "Season not available in raw game data"}
-
-            for i, player in enumerate(key_players[:5]):  # Limit to top 5 key players
-                player_id = player.get("id")
-                if player_id:
-                    try:
-                        logger.info(f"[PIPELINE] Collecting detailed data for key player {player_id} ({player.get('name', 'Unknown')})")
-                        player_detailed = await self.collector.collect_player_data(str(player_id), str(season))
-                        
-                        enhanced_player = player.copy()
-                        enhanced_player["detailed_data"] = player_detailed
-                        enhanced_key_players.append(enhanced_player)
-                        
-                        logger.info(f"[PIPELINE] Successfully collected detailed data for player {player_id}")
-                    except Exception as e:
-                        logger.warning(f"[PIPELINE] Failed to collect detailed data for player {player_id}: {e}")
-                        enhanced_player = player.copy()
-                        enhanced_player["detailed_data"] = {"error": str(e)}
-                        enhanced_key_players.append(enhanced_player)
-            
-            enhanced_player_data["enhanced_key_players"] = enhanced_key_players
-            
-            # Collect detailed data for a few sample players from each team (for context)
-            home_players = list(player_info.get("home_players", {}).values())
-            away_players = list(player_info.get("away_players", {}).values())
-            
-            # Collect data for 2-3 players from each team
-            sample_players = []
-            
-            # Sample from home team
-            for player in home_players[:2]:
-                player_id = player.get("id")
-                if player_id:
-                    try:
-                        logger.info(f"[PIPELINE] Collecting sample data for home player {player_id}")
-                        player_detailed = await self.collector.collect_player_data(str(player_id), str(season))
-                        
-                        sample_player = player.copy()
-                        sample_player["detailed_data"] = player_detailed
-                        sample_players.append(sample_player)
-                    except Exception as e:
-                        logger.warning(f"[PIPELINE] Failed to collect sample data for home player {player_id}: {e}")
-            
-            # Sample from away team
-            for player in away_players[:2]:
-                player_id = player.get("id")
-                if player_id:
-                    try:
-                        logger.info(f"[PIPELINE] Collecting sample data for away player {player_id}")
-                        player_detailed = await self.collector.collect_player_data(str(player_id), str(season))
-                        
-                        sample_player = player.copy()
-                        sample_player["detailed_data"] = player_detailed
-                        sample_players.append(sample_player)
-                    except Exception as e:
-                        logger.warning(f"[PIPELINE] Failed to collect sample data for away player {player_id}: {e}")
-            
-            enhanced_player_data["sample_players_detailed"] = sample_players
-            
-            logger.info(f"[PIPELINE] Enhanced player data collection completed. Key players: {len(enhanced_key_players)}, Sample players: {len(sample_players)}")
-            return enhanced_player_data
+            logger.info(f"[HELPER-COLLECTOR] Raw team data: {repr(result)[:1000]}")
+            logger.debug(f"[HELPER-COLLECTOR] Team data collection completed - Home: {home_team_id}, Away: {away_team_id}")
+            return result
             
         except Exception as e:
-            logger.error(f"[PIPELINE] Error collecting enhanced player data: {e}")
-            return {"error": f"Failed to collect enhanced player data: {str(e)}"}
+            error_msg = f"Failed to collect team data: {str(e)}"
+            logger.error(f"[HELPER-COLLECTOR] {error_msg}")
+            raise ValueError(error_msg) from e
+
+    async def _collect_player_data(self, player_id: str) -> Dict[str, Any]:
+        """Collect player data and validate response."""
+        logger.debug(f"[HELPER-COLLECTOR] Collecting player data for player {player_id}")
+        
+        try:
+            player_data = await self.collector.collect_player_data(player_id)
+            logger.info(f"[HELPER-COLLECTOR] Raw player data for {player_id}: {repr(player_data)[:1000]}")
+        except Exception as e:
+            error_msg = f"Failed to collect player data for player {player_id}: {str(e)}"
+            logger.error(f"[HELPER-COLLECTOR] {error_msg}")
+            raise ValueError(error_msg) from e
+        
+        if not player_data:
+            error_msg = f"No data returned for player {player_id}"
+            logger.error(f"[HELPER-COLLECTOR] {error_msg}")
+            raise ValueError(error_msg)
+        
+        if player_data.get("errors"):
+            error_msg = f"API errors for player {player_id}: {player_data.get('errors', [])}"
+            logger.error(f"[HELPER-COLLECTOR] {error_msg}")
+            raise ValueError(error_msg)
+        
+        logger.debug(f"[HELPER-COLLECTOR] Player data collected successfully for player {player_id}")
+        return player_data
+
+    # Helper methods for research
+    async def _research_game_context(self, game_data: Dict[str, Any], team_data: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Research contextual information for the game."""
+        logger.debug(f"[HELPER-RESEARCHER] Starting game context research")
+        research_data = {}
+        
+        try:
+            # Extract team IDs and fixture info
+            fixture_response = game_data.get("response", [{}])[0].get("fixture", {}).get("response", [])
+            if fixture_response:
+                fixture = fixture_response[0]
+                home_team_id = fixture.get("teams", {}).get("home", {}).get("id")
+                away_team_id = fixture.get("teams", {}).get("away", {}).get("id")
+                league_id = fixture.get("league", {}).get("id")
+                season = fixture.get("league", {}).get("season")
+                
+                logger.debug(f"[HELPER-RESEARCHER] Extracted context info - Home: {home_team_id}, Away: {away_team_id}, League: {league_id}, Season: {season}")
+                
+                # Research team history
+                if home_team_id and away_team_id:
+                    logger.debug(f"[HELPER-RESEARCHER] Researching team history for teams {home_team_id} vs {away_team_id}")
+                    try:
+                        team_history = await self.researcher.research_team_history(
+                            str(home_team_id), str(away_team_id)
+                        )
+                        research_data["team_history"] = team_history
+                        logger.debug(f"[HELPER-RESEARCHER] Team history research completed")
+                    except Exception as e:
+                        logger.warning(f"[HELPER-RESEARCHER] Failed to research team history: {str(e)}")
+                        research_data["team_history"] = None
+                else:
+                    logger.warning(f"[HELPER-RESEARCHER] Missing team IDs for history research - Home: {home_team_id}, Away: {away_team_id}")
+                
+                # Research season trends
+                if league_id and season:
+                    logger.debug(f"[HELPER-RESEARCHER] Researching season trends for league {league_id}, season {season}")
+                    try:
+                        season_trends = await self.researcher.research_season_trends(
+                            str(league_id), str(season)
+                        )
+                        research_data["season_trends"] = season_trends
+                        logger.debug(f"[HELPER-RESEARCHER] Season trends research completed")
+                    except Exception as e:
+                        logger.warning(f"[HELPER-RESEARCHER] Failed to research season trends: {str(e)}")
+                        research_data["season_trends"] = None
+                else:
+                    logger.warning(f"[HELPER-RESEARCHER] Missing league/season info for trends research - League: {league_id}, Season: {season}")
+            else:
+                logger.warning(f"[HELPER-RESEARCHER] No fixture response found for context research")
+            
+            logger.info(f"[HELPER-RESEARCHER] Raw research context data: {repr(research_data)[:1000]}")
+            logger.debug(f"[HELPER-RESEARCHER] Game context research completed with {len(research_data)} data sources")
+            return research_data
+            
+        except Exception as e:
+            error_msg = f"Failed to research game context: {str(e)}"
+            logger.error(f"[HELPER-RESEARCHER] {error_msg}")
+            raise ValueError(error_msg) from e
+
+    async def _research_player_performance(self, player_id: str, game_id: Optional[str] = None) -> Dict[str, Any]:
+        """Research player performance data."""
+        context_info = f"player {player_id}"
+        if game_id:
+            context_info += f" in game {game_id}"
+        
+        logger.debug(f"[HELPER-RESEARCHER] Researching player performance for {context_info}")
+        context = {"game_id": game_id} if game_id else {}
+        
+        try:
+            performance_data = await self.researcher.research_player_performance(player_id, context)
+            logger.info(f"[HELPER-RESEARCHER] Raw player performance data for {player_id}: {repr(performance_data)[:1000]}")
+            logger.debug(f"[HELPER-RESEARCHER] Player performance research completed for {context_info}")
+            return performance_data
+        except Exception as e:
+            error_msg = f"Failed to research player performance for {context_info}: {str(e)}"
+            logger.error(f"[HELPER-RESEARCHER] {error_msg}")
+            raise ValueError(error_msg) from e
+
+    # Helper methods for storyline generation
+    async def _generate_storylines(self, data_list: List[Dict[str, Any]]) -> List[str]:
+        """Generate storylines from collected data."""
+        logger.debug(f"[HELPER-RESEARCHER] Generating storylines from {len(data_list)} data sources")
+        
+        try:
+            storylines = await self.researcher.generate_storylines(data_list)
+            
+            if not storylines:
+                logger.warning(f"[HELPER-RESEARCHER] No storylines generated from {len(data_list)} data sources")
+                return []
+            
+            logger.info(f"[HELPER-RESEARCHER] Generated {len(storylines)} storylines: {storylines}")
+            logger.debug(f"[HELPER-RESEARCHER] Generated {len(storylines)} storylines")
+            return storylines
+            
+        except Exception as e:
+            error_msg = f"Failed to generate storylines: {str(e)}"
+            logger.error(f"[HELPER-RESEARCHER] {error_msg}")
+            raise ValueError(error_msg) from e
+
+    # Helper methods for result formatting
+    def _format_result(self, content: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Format the final result with content and metadata."""
+        logger.debug(f"[HELPER] Formatting result with content length {len(content)} and metadata keys: {list(metadata.keys())}")
+        
+        try:
+            # Validate content
+            if not content:
+                error_msg = "Content cannot be empty"
+                logger.error(f"[HELPER] {error_msg}")
+                raise ValueError(error_msg)
+            
+            # Validate metadata
+            if not metadata:
+                error_msg = "Metadata cannot be empty"
+                logger.error(f"[HELPER] {error_msg}")
+                raise ValueError(error_msg)
+            
+            result = {
+                "content": content,
+                "metadata": {
+                    **metadata,
+                    "pipeline_version": "1.0.0",
+                    "formatted_at": datetime.now().isoformat()
+                }
+            }
+            
+            logger.debug(f"[HELPER] Result formatting completed")
+            return result
+            
+        except Exception as e:
+            error_msg = f"Failed to format result: {str(e)}"
+            logger.error(f"[HELPER] {error_msg}")
+            raise ValueError(error_msg) from e
 
     async def get_pipeline_status(self) -> Dict[str, Any]:
-        """Get the current status of the pipeline and its agents."""
-        return {
-            "pipeline_status": "operational",
+        """Get the current status of all agents in the pipeline."""
+        logger.debug(f"[PIPELINE] Getting pipeline status")
+        
+        status = {
+            "pipeline_version": "1.0.0",
             "agents": {
                 "data_collector": "initialized",
-                "format_manager": "initialized", 
-                "researcher": "initialized",
+                "researcher": "initialized", 
                 "writer": "initialized"
             },
-            "configuration": {
-                "model": self.model,
-                "temperature": self.temperature,
-                "max_tokens": self.max_tokens
-            },
-            "data_flow": "Data Collector → Format Manager → Researcher → Format Manager → Writer",
-            "timestamp": datetime.now().isoformat()
+            "last_updated": datetime.now().isoformat()
         }
-
-
-# Legacy ArticlePipeline class for backward compatibility
-class ArticlePipeline(AgentPipeline):
-    """Legacy pipeline class - now inherits from AgentPipeline."""
-    
-    def __init__(self):
-        """Initialize the legacy pipeline."""
-        super().__init__()
-        logger.info("Legacy ArticlePipeline initialized (using new AgentPipeline)") 
+        
+        logger.debug(f"[PIPELINE] Pipeline status retrieved successfully")
+        return status 

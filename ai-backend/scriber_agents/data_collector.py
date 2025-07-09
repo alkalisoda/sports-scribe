@@ -5,334 +5,238 @@ It collects real-time and historical sports data to feed into the content genera
 """
 
 import logging
-from typing import Any, Dict, List
-from openai import OpenAI
-import asyncio
+from typing import Any, List, Dict
+import aiohttp
 import os
+
+from utils.security import sanitize_log_input
+
 from dotenv import load_dotenv
-from agents import Agent, GuardrailFunctionOutput, RunContextWrapper, Runner, output_guardrail, trace, function_tool
-from pydantic import BaseModel
-import http.client
-import json
-
 load_dotenv()
-
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-currentModel = os.getenv("OPENAI_MODEL")
 
 logger = logging.getLogger(__name__)
 
-# class PlayerStats(BaseModel):
-#     name: str
-#     team: str
-#     points: int
-#     rebounds: int
-#     assists: int
-#     additional_stats: Optional[Dict[str, float]] = None
-
-# class GameData(BaseModel):
-#     game_id: str
-#     home_team: str
-#     away_team: str
-#     final_score: str
-#     date: str = Field(description="Date in ISO format (YYYY-MM-DD)")
-#     key_stats: Optional[Dict[str, str]] = None  # Changed to single type for strict mode
-#     player_performances: Optional[List[PlayerStats]] = None
-
-
-class DataCollectorResponse(BaseModel):
-    get: str
-    parameters: Dict[str, int]
-    errors: List[str]
-    results: int
-    paging: Dict[str, int]
-    response: List[Dict[str, Any]]
-
-class DataOutput(BaseModel):
-    reasoning: str
-    is_valid: bool
-
-# original_prompt = """Expert sports data analyst. Collect comprehensive, accurate
-#     game statistics from multiple sources. Validate data quality and flag any
-#     inconsistencies. Prioritize official sources and recent updates."""
-
-temp_prompt = "" """
-        You are a specialized soccer data collector agent. Your role is to:
-        1. Collect soccer/football data from the tools you are given
-        2. Always return data in the exact JSON structure specified here.
-        4. Validate data quality before returning results
-        
-        CRITICAL: You must ALWAYS return responses in this exact JSON format:
-        {
-            "get": "string describing what was requested",
-            "parameters": {"dictionary of parameters used"},
-            "errors": ["array of any errors encountered"],
-            "results": "number of results returned",
-            "paging": {
-                "current": "current page number",
-                "total": "total pages available"
-            },
-            "response": ["array of actual data objects"]
-        }
-        
-        If no data is found, return results: 0 and empty response array.
-        """
-
-@function_tool
-def get_player_data(player_id: str, season: str = "2023") -> str:
-    """Get football/soccer player data from RapidAPI."""
-    print("get_player_data():")
-    try:
-        api_key = os.getenv("RAPIDAPI_KEY")
-        if not api_key:
-            raise ValueError("RAPID_API_KEY not found.")
-        
-        conn = http.client.HTTPSConnection("api-football-v1.p.rapidapi.com")
-        
-        headers = {
-            'x-rapidapi-host': "api-football-v1.p.rapidapi.com",
-            'x-rapidapi-key': api_key,
-        }
-
-        conn.request("GET", f"/v3/players?id={player_id}&season={season}", headers=headers)
-
-        response = conn.getresponse()
-        data = response.read()
-        decoded_data = data.decode("utf8")
-        print("Rapid API football player data retrieved successfully")
-        return decoded_data
-    except Exception as e:
-        error_msg = f"Error fetching Rapid API football player data: {e}"
-        print(error_msg)
-        return error_msg
-
-@function_tool
-def get_game_data(fixture_id: str) -> str:
-    """Get football game data from RapidAPI."""
-    print("get_football_data():")
-    try:
-        api_key = os.getenv("RAPIDAPI_KEY")
-        if not api_key:
-            raise ValueError("RAPIDAPI_KEY not found.")
-        
-        conn = http.client.HTTPSConnection("api-football-v1.p.rapidapi.com")
-        
-        headers = {
-        'x-rapidapi-key': api_key,
-        'x-rapidapi-host': "api-football-v1.p.rapidapi.com"
-        }
-
-        conn.request("GET", f"/v3/fixtures?id={fixture_id}", headers=headers)
-
-        response = conn.getresponse()
-        data = response.read()
-
-        decoded_data = data.decode("utf8")
-        logger.info(f"API raw response: {decoded_data}")
-
-        print("Rapid API football game data retrieved successfully")
-
-        return decoded_data
-    except Exception as e:
-        error_msg = f"Error fetching Rapid API football game data: {e}"
-        print(error_msg)
-        return error_msg
-
-
-@function_tool
-def get_team_data(team_id: str) -> str:
-    """Get football/soccer team data from RapidAPI."""
-    print("get_team_data():")
-    try:
-        api_key = os.getenv("RAPIDAPI_KEY")
-        if not api_key:
-            raise ValueError("RAPID_API_KEY not found.")
-        
-        conn = http.client.HTTPSConnection("api-football-v1.p.rapidapi.com")
-        
-        headers = {
-            'x-rapidapi-host': "api-football-v1.p.rapidapi.com",
-            'x-rapidapi-key': api_key,
-        }
-
-        conn.request("GET", f"/v3/teams?id={team_id}", headers=headers)
-
-        response = conn.getresponse()
-        data = response.read()
-        decoded_data = data.decode("utf8")
-        print("Rapid API football team data retrieved successfully")
-        return decoded_data
-    except Exception as e:
-        error_msg = f"Error fetching Rapid API football team data: {e}"
-        print(error_msg)
-        return error_msg
-
-
-@function_tool
-def get_football_data() -> str:
-    """Get football/soccer team data from RapidAPI."""
-    print("get_football_data():")
-    try:
-        api_key = os.getenv("RAPIDAPI_KEY")
-        if not api_key:
-            raise ValueError("RAPID_API_KEY not found.")
-        
-        conn = http.client.HTTPSConnection("api-football-v1.p.rapidapi.com")
-        
-        headers = {
-            'x-rapidapi-host': "api-football-v1.p.rapidapi.com",
-            'x-rapidapi-key': api_key,
-        }
-
-        conn.request("GET", "/v3/teams?id=33", headers=headers)
-
-        response = conn.getresponse() #Returns HTTP response object
-        data = response.read()
-
-        decoded_data = data.decode("utf8")
-
-        print("Rapid API football team data retrieved successfully")
-
-        return decoded_data
-    except Exception as e:
-        error_msg = f"Error fetching Rapid API football team data: {e}"
-        print(error_msg)
-        return error_msg
-
-
-@output_guardrail
-async def validate_data_quality(
-    ctx: RunContextWrapper, agent: Agent, output: str
-) -> GuardrailFunctionOutput:
-    """Validate data quality with flexible validation."""
-    try:
-        # Always allow the output through, but log validation status
-        if isinstance(output, str):
-            # Try to parse as JSON to check structure
-            import json
-            try:
-                data = json.loads(output)
-                if isinstance(data, dict):
-                    logger.info("Data validation: Valid JSON structure detected")
-                    return GuardrailFunctionOutput(
-                        output_info=DataOutput(reasoning="Valid JSON structure", is_valid=True),
-                        tripwire_triggered=False
-                    )
-            except json.JSONDecodeError:
-                logger.warning("Data validation: Output is not valid JSON, but allowing through")
-        
-        # Allow output through even if validation fails
-        return GuardrailFunctionOutput(
-            output_info=DataOutput(reasoning="Output allowed through validation", is_valid=True),
-            tripwire_triggered=False
-        )
-        
-    except Exception as e:
-        logger.warning(f"Data validation error: {e}, allowing output through")
-        return GuardrailFunctionOutput(
-            output_info=DataOutput(reasoning=f"Validation error but allowing through: {e}", is_valid=True),
-            tripwire_triggered=False
-        )
-
-class DataCollectorAgent():
+class DataCollectorAgent:
     """Agent responsible for collecting sports data from various APIs and data sources."""
 
-    def __init__(self, config: dict[str, Any]):
+    def __init__(self, config: Dict[str, Any]):
         """Initialize the Data Collector Agent with configuration."""
-        self.agent= Agent(
-            name="SportsDataCollector",
-            instructions=temp_prompt,
-            tools=[get_game_data, get_player_data, get_team_data, get_football_data],
-            model=currentModel,
-            output_guardrails=[validate_data_quality],
-            )
-        
         self.config = config
+        self.api_key = config.get("rapidapi_key") or os.getenv("RAPIDAPI_KEY")
+        self.base_url = "https://api-football-v1.p.rapidapi.com/v3"
+        self.headers = {
+            "X-RapidAPI-Key": self.api_key,
+            "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
+        }
         logger.info("Data Collector Agent initialized")
 
-    async def collect_game_data(self, game_id: str) -> Dict[str, Any]:
-        """Collect game data for a specific game ID."""
+    async def _make_api_request(self, endpoint: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Make a request to the API-Football API.
+        
+        Args:
+            endpoint: API endpoint (e.g., "/fixtures", "/teams")
+            params: Query parameters
+            
+        Returns:
+            Standardized API response structure
+        """
         try:
-            logger.info(f"Collecting game data for game {game_id}")
-            
-            # Use the agent to collect game data
-            result = await Runner.run(self.agent, f"Get game data for fixture {game_id}")
-            
-            if not result or not result.final_output:
-                raise ValueError("No game data received from collector")
-            
-            # Parse the result
-            if isinstance(result.final_output, str):
-                data = json.loads(result.final_output)
-            else:
-                data = result.final_output
-            
-            logger.info(f"Successfully collected game data for game {game_id}")
-            return data
-            
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.base_url}{endpoint}"
+                async with session.get(url, headers=self.headers, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {
+                            "get": endpoint,
+                            "parameters": params or {},
+                            "errors": [],
+                            "results": data.get("results", 0),
+                            "paging": data.get("paging", {}),
+                            "response": data.get("response", [])
+                        }
+                    else:
+                        logger.error(f"API request failed: {response.status}")
+                        return {
+                            "get": endpoint,
+                            "parameters": params or {},
+                            "errors": [f"HTTP {response.status}"],
+                            "results": 0,
+                            "paging": {},
+                            "response": []
+                        }
         except Exception as e:
-            logger.error(f"Failed to collect game data for game {game_id}: {e}")
-            raise
+            logger.error(f"API request error: {str(e)}")
+            return {
+                "get": endpoint,
+                "parameters": params or {},
+                "errors": [str(e)],
+                "results": 0,
+                "paging": {},
+                "response": []
+            }
+
+    async def collect_game_data(self, game_id: str) -> Dict[str, Any]:
+        """Collect comprehensive data for a specific game.
+
+        Args:
+            game_id: Unique identifier for the game (fixture ID)
+
+        Returns:
+            Dictionary containing game data in standardized format
+        """
+        logger.info("Collecting data for game: %s", sanitize_log_input(game_id))
+        
+        # Collect fixture data
+        fixture_data = await self._make_api_request("/fixtures", {"id": game_id})
+        
+        # Collect events for the game
+        events_data = await self._make_api_request("/fixtures/events", {"fixture": game_id})
+        
+        # Collect lineups for the game
+        lineups_data = await self._make_api_request("/fixtures/lineups", {"fixture": game_id})
+        
+        # Collect statistics for the game
+        stats_data = await self._make_api_request("/fixtures/statistics", {"fixture": game_id})
+        
+        return {
+            "get": "game_data",
+            "parameters": {"game_id": game_id},
+            "errors": [],
+            "results": 1,
+            "paging": {},
+            "response": [
+                {
+                    "fixture": fixture_data,
+                    "events": events_data,
+                    "lineups": lineups_data,
+                    "statistics": stats_data
+                }
+            ]
+        }
 
     async def collect_team_data(self, team_id: str) -> Dict[str, Any]:
-        """Collect team data for a specific team ID."""
-        try:
-            logger.info(f"Collecting team data for team {team_id}")
-            
-            # Use the agent to collect team data
-            result = await Runner.run(self.agent, f"Get team data for team {team_id}")
-            
-            if not result or not result.final_output:
-                raise ValueError("No team data received from collector")
-            
-            # Parse the result
-            if isinstance(result.final_output, str):
-                data = json.loads(result.final_output)
-            else:
-                data = result.final_output
-            
-            logger.info(f"Successfully collected team data for team {team_id}")
-            return data
-            
-        except Exception as e:
-            logger.error(f"Failed to collect team data for team {team_id}: {e}")
-            raise
+        """Collect team statistics and information.
 
-    async def collect_player_data(self, player_id: str, season: str) -> Dict[str, Any]:
-        """Collect player data for a specific player ID and season."""
-        try:
-            logger.info(f"Collecting player data for player {player_id} in season {season}")
-            # Use the agent to collect player data
-            result = await Runner.run(self.agent, f"Get player data for player {player_id} in season {season}")
-            if not result or not result.final_output:
-                raise ValueError("No player data received from collector")
-            # Parse the result
-            if isinstance(result.final_output, str):
-                data = json.loads(result.final_output)
-            else:
-                data = result.final_output
-            logger.info(f"Successfully collected player data for player {player_id} in season {season}")
-            return data
-        except Exception as e:
-            logger.error(f"Failed to collect player data for player {player_id} in season {season}: {e}")
-            raise
+        Args:
+            team_id: Unique identifier for the team
 
-
-async def main():
-     param = dict[str, Any]
-     dc = DataCollectorAgent(param)
-    
-     with trace("Initialize data collector agent class: "):
-        try:
-            data = await Runner.run(dc.agent, temp_prompt)
-            print("AI: ", data.final_output)
+        Returns:
+            Dictionary containing team data in standardized format
+        """
+        logger.info("Collecting data for team: %s", sanitize_log_input(team_id))
         
-        except Exception as e:
-            print(f"Error generating data: {e}")
-            return f"Error generating data: {e}"
-    
+        # Collect team information
+        team_info = await self._make_api_request("/teams", {"id": team_id})
+        
+        # Collect team statistics for current season
+        team_stats = await self._make_api_request("/teams/statistics", {
+            "team": team_id,
+            "league": self.config.get("default_league", "39"),  # Premier League default
+            "season": self.config.get("default_season", "2024")
+        })
+        
+        # Collect team fixtures
+        team_fixtures = await self._make_api_request("/fixtures", {
+            "team": team_id,
+            "season": self.config.get("default_season", "2024")
+        })
+        
+        return {
+            "get": "team_data",
+            "parameters": {"team_id": team_id},
+            "errors": [],
+            "results": 1,
+            "paging": {},
+            "response": [
+                {
+                    "team_info": team_info,
+                    "team_stats": team_stats,
+                    "team_fixtures": team_fixtures
+                }
+            ]
+        }
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    async def collect_player_data(self, player_id: str) -> Dict[str, Any]:
+        """Collect player statistics and information.
+
+        Args:
+            player_id: Unique identifier for the player
+
+        Returns:
+            Dictionary containing player data in standardized format
+        """
+        logger.info("Collecting data for player: %s", sanitize_log_input(player_id))
+        
+        # Collect player information
+        player_info = await self._make_api_request("/players", {"id": player_id})
+        
+        # Collect player statistics for current season
+        player_stats = await self._make_api_request("/players", {
+            "id": player_id,
+            "season": self.config.get("default_season", "2024")
+        })
+        
+        # Collect player transfers
+        player_transfers = await self._make_api_request("/transfers", {"player": player_id})
+        
+        return {
+            "get": "player_data",
+            "parameters": {"player_id": player_id},
+            "errors": [],
+            "results": 1,
+            "paging": {},
+            "response": [
+                {
+                    "player_info": player_info,
+                    "player_stats": player_stats,
+                    "player_transfers": player_transfers
+                }
+            ]
+        }
+
+    async def collect_league_data(self, league_id: str, season: str = None) -> Dict[str, Any]:
+        """Collect league standings and information.
+
+        Args:
+            league_id: Unique identifier for the league
+            season: Season year (defaults to config default)
+
+        Returns:
+            Dictionary containing league data in standardized format
+        """
+        season = season or self.config.get("default_season", "2024")
+        logger.info("Collecting data for league: %s, season: %s", 
+                   sanitize_log_input(league_id), sanitize_log_input(season))
+        
+        # Collect league standings
+        standings = await self._make_api_request("/standings", {
+            "league": league_id,
+            "season": season
+        })
+        
+        # Collect league fixtures
+        fixtures = await self._make_api_request("/fixtures", {
+            "league": league_id,
+            "season": season
+        })
+        
+        # Collect top scorers
+        top_scorers = await self._make_api_request("/players/topscorers", {
+            "league": league_id,
+            "season": season
+        })
+        
+        return {
+            "get": "league_data",
+            "parameters": {"league_id": league_id, "season": season},
+            "errors": [],
+            "results": 1,
+            "paging": {},
+            "response": [
+                {
+                    "standings": standings,
+                    "fixtures": fixtures,
+                    "top_scorers": top_scorers
+                }
+            ]
+        }
