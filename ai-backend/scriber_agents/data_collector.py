@@ -62,9 +62,9 @@ temp_prompt = "" """
         You are a specialized soccer data collector agent. Your role is to:
         1. Collect soccer/football data from the tools you are given
         2. Always return data in the exact JSON structure specified here.
-        4. Validate data quality before returning results
+        3. Validate data quality before returning results
         
-        CRITICAL: You must ALWAYS return responses in this exact JSON format:
+        CRITICAL: You must ALWAYS return responses in this exact JSON format ONLY:
         {
             "get": "string describing what was requested",
             "parameters": {"dictionary of parameters used"},
@@ -77,7 +77,12 @@ temp_prompt = "" """
             "response": ["array of actual data objects"]
         }
         
-        If no data is found, return results: 0 and empty response array.
+        IMPORTANT RULES:
+        - Return ONLY the JSON object, no additional text or explanations
+        - Do not include markdown formatting or code blocks
+        - If no data is found, return results: 0 and empty response array
+        - Ensure all JSON is properly formatted with correct quotes and commas
+        - If there's an error, include it in the "errors" array
         """
 
 @function_tool
@@ -236,6 +241,52 @@ async def validate_data_quality(
             tripwire_triggered=False
         )
 
+def _extract_json_from_response(response_text: str) -> Dict[str, Any]:
+    """Extract valid JSON from a response that may contain mixed content."""
+    import re
+    
+    # First try direct JSON parsing
+    try:
+        return json.loads(response_text)
+    except json.JSONDecodeError:
+        pass
+    
+    # Try to find JSON object with proper brace counting
+    brace_count = 0
+    start_pos = -1
+    end_pos = -1
+    
+    for i, char in enumerate(response_text):
+        if char == '{':
+            if brace_count == 0:
+                start_pos = i
+            brace_count += 1
+        elif char == '}':
+            brace_count -= 1
+            if brace_count == 0 and start_pos != -1:
+                end_pos = i
+                break
+    
+    if start_pos != -1 and end_pos != -1:
+        try:
+            extracted_json = response_text[start_pos:end_pos + 1]
+            return json.loads(extracted_json)
+        except json.JSONDecodeError:
+            pass
+    
+    # Try regex approach as last resort
+    json_matches = list(re.finditer(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL))
+    if json_matches:
+        # Sort by length to get the largest JSON object
+        largest_match = max(json_matches, key=lambda x: len(x.group(0)))
+        try:
+            return json.loads(largest_match.group(0))
+        except json.JSONDecodeError:
+            pass
+    
+    raise ValueError("Could not extract valid JSON from response")
+
+
 class DataCollectorAgent():
     """Agent responsible for collecting sports data from various APIs and data sources."""
 
@@ -265,7 +316,13 @@ class DataCollectorAgent():
             
             # Parse the result
             if isinstance(result.final_output, str):
-                data = json.loads(result.final_output)
+                try:
+                    data = _extract_json_from_response(result.final_output)
+                    logger.info("Successfully parsed JSON response")
+                except Exception as json_error:
+                    logger.error(f"Invalid JSON response from agent: {json_error}")
+                    logger.error(f"Raw response: {result.final_output[:500]}...")  # Log first 500 chars
+                    raise ValueError(f"Invalid JSON response from agent: {json_error}")
             else:
                 data = result.final_output
             
@@ -289,7 +346,13 @@ class DataCollectorAgent():
             
             # Parse the result
             if isinstance(result.final_output, str):
-                data = json.loads(result.final_output)
+                try:
+                    data = _extract_json_from_response(result.final_output)
+                    logger.info("Successfully parsed JSON response")
+                except Exception as json_error:
+                    logger.error(f"Invalid JSON response from agent: {json_error}")
+                    logger.error(f"Raw response: {result.final_output[:500]}...")  # Log first 500 chars
+                    raise ValueError(f"Invalid JSON response from agent: {json_error}")
             else:
                 data = result.final_output
             
@@ -310,7 +373,13 @@ class DataCollectorAgent():
                 raise ValueError("No player data received from collector")
             # Parse the result
             if isinstance(result.final_output, str):
-                data = json.loads(result.final_output)
+                try:
+                    data = _extract_json_from_response(result.final_output)
+                    logger.info("Successfully parsed JSON response")
+                except Exception as json_error:
+                    logger.error(f"Invalid JSON response from agent: {json_error}")
+                    logger.error(f"Raw response: {result.final_output[:500]}...")  # Log first 500 chars
+                    raise ValueError(f"Invalid JSON response from agent: {json_error}")
             else:
                 data = result.final_output
             logger.info(f"Successfully collected player data for player {player_id} in season {season}")

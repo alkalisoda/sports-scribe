@@ -71,6 +71,12 @@ class AgentPipeline:
             if not raw_game_data:
                 raise ValueError(f"Failed to collect data for game {game_id}")
             
+            # Check if data collection resulted in errors
+            if raw_game_data.get("errors") and len(raw_game_data.get("errors", [])) > 0:
+                logger.warning(f"[PIPELINE] Data collection had errors: {raw_game_data['errors']}")
+                if raw_game_data.get("results", 0) == 0:
+                    raise ValueError(f"No data available for game {game_id}: {raw_game_data['errors']}")
+            
             # Log raw data information
             logger.info(f"[PIPELINE-DATA] Raw game data collected:")
             logger.info(f"[PIPELINE-DATA]   Type: {type(raw_game_data)}")
@@ -149,13 +155,6 @@ class AgentPipeline:
             # Step 2: Research and generate storylines
             logger.info(f"[PIPELINE] Step 2: Conducting research and generating storylines")
             
-            # Create a combined data structure for research
-            research_input = {
-                "game_data": raw_game_data,
-                "team_info": enhanced_team_data,
-                "player_info": enhanced_player_data
-            }
-            
             # Step 2.1: Analyze game data for storylines
             logger.info(f"[PIPELINE] Step 2.1: Analyzing game data for storylines")
             game_analysis = await self.researcher.get_storyline_from_game_data(raw_game_data)
@@ -177,7 +176,6 @@ class AgentPipeline:
                 "game_analysis": game_analysis,  # Current match events only
                 "historical_context": historical_context,  # Background information only
                 "player_performance": player_performance_analysis,  # Current match player events only
-                # Do not combine all storylines together to avoid mixing current events with historical context
             }
             
             # Log research data information
@@ -195,8 +193,6 @@ class AgentPipeline:
             
             # Prepare data for writer
             game_info = raw_game_data
-            team_info_for_writer = enhanced_team_data
-            player_info_for_writer = enhanced_player_data
             research_for_writer = comprehensive_research_data
             
             # Log the data being passed to writer for debugging
@@ -227,26 +223,26 @@ class AgentPipeline:
                 "game_id": game_id,
                 "article_type": "game_recap",
                 "content": article_content,
-                "storylines": game_analysis,  # Only current match events for storylines
-                "team_info": enhanced_team_data,
-                "player_info": enhanced_player_data,
-                "research_data": comprehensive_research_data,
-                "historical_context": historical_context,
-                "player_performance_analysis": player_performance_analysis,
-                "metadata": {
-                    "generated_at": datetime.now().isoformat(),
-                    "pipeline_duration": pipeline_duration,
-                    "data_sources": ["rapidapi_football"],
-                    "model_used": self.model,
-                    "format_manager_used": False,
-                    "team_info_extracted": "error" not in team_info,
-                    "player_info_extracted": "error" not in player_info,
-                    "enhanced_team_data_collected": "error" not in enhanced_team_data,
-                    "enhanced_player_data_collected": "error" not in enhanced_player_data,
-                    "historical_context_analyzed": "error" not in historical_context,
-                    "player_performance_analyzed": "error" not in player_performance_analysis,
-                    "comprehensive_storylines_generated": len(game_analysis) > 0
-                }
+                # "storylines": game_analysis,  # Only current match events for storylines
+                # "team_info": enhanced_team_data,
+                # "player_info": enhanced_player_data,
+                # "research_data": comprehensive_research_data,
+                # "historical_context": historical_context,
+                # "player_performance_analysis": player_performance_analysis,
+                # "metadata": {
+                #     "generated_at": datetime.now().isoformat(),
+                #     "pipeline_duration": pipeline_duration,
+                #     "data_sources": ["rapidapi_football"],
+                #     "model_used": self.model,
+                #     "format_manager_used": False,
+                #     "team_info_extracted": "error" not in team_info,
+                #     "player_info_extracted": "error" not in player_info,
+                #     "enhanced_team_data_collected": "error" not in enhanced_team_data,
+                #     "enhanced_player_data_collected": "error" not in enhanced_player_data,
+                #     "historical_context_analyzed": "error" not in historical_context,
+                #     "player_performance_analyzed": "error" not in player_performance_analysis,
+                #     "comprehensive_storylines_generated": len(game_analysis) > 0
+                # }
             }
             
         except Exception as e:
@@ -283,7 +279,16 @@ class AgentPipeline:
             return data
         except Exception as e:
             logger.error(f"[PIPELINE] Failed to collect game data: {e}")
-            raise
+            
+            # Return a structured error response instead of raising
+            return {
+                "get": f"game data for fixture {game_id}",
+                "parameters": {"fixture_id": game_id},
+                "errors": [f"Failed to collect game data: {str(e)}"],
+                "results": 0,
+                "paging": {"current": 1, "total": 1},
+                "response": []
+            }
 
     def extract_team_info(self, raw_game_data: Dict[str, Any]) -> Dict[str, Any]:
         """Extract team information from raw game data.
