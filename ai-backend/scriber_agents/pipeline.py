@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional, List
 from .data_collector import DataCollectorAgent
 from .researcher import ResearchAgent
 from .writer import WriterAgent
+from .editor import Editor
 from openai import AsyncOpenAI
 
 from dotenv import load_dotenv
@@ -53,6 +54,7 @@ class AgentPipeline:
         self.collector = DataCollectorAgent(config)
         self.researcher = ResearchAgent(config)
         self.writer = WriterAgent(config)
+        self.editor = Editor(config)
         
         logger.info("AgentPipeline initialized successfully")
 
@@ -68,6 +70,7 @@ class AgentPipeline:
             # Step 1: Data Collection
             logger.info(f"[PIPELINE] Step 1: Collecting game data for {game_id}")
             raw_game_data = await self._collect_game_data(game_id)
+            logger.info(f"[PIPELINE] Raw game data:{raw_game_data}")
             if not raw_game_data:
                 raise ValueError(f"Failed to collect data for game {game_id}")
             
@@ -90,8 +93,12 @@ class AgentPipeline:
             
             # Step 1.5: Extract team and player information
             logger.info(f"[PIPELINE] Step 1.5: Extracting team and player information")
-            team_info = self.extract_team_info(raw_game_data)
-            player_info = self.extract_player_info(raw_game_data)
+            try:
+                team_info = self.extract_team_info(raw_game_data)
+                player_info = self.extract_player_info(raw_game_data)
+            except Exception as e:
+                logger.error(f"[PIPELINE] Error extracting team and player information: {e}")
+                raise ValueError(f"Failed to extract team and player information: {e}")
             
             # Log extracted information
             logger.info(f"[PIPELINE-DATA] Team info extracted:")
@@ -214,7 +221,28 @@ class AgentPipeline:
             
             logger.info(f"[PIPELINE] Article content generated successfully")
             
-            # Step 4: Return results
+            # Step 4: Edit and fact-check the article
+            logger.info(f"[PIPELINE] Step 4: Editing and fact-checking article")
+            original_article = article_content
+            
+            # Step 4.1: Fact-checking
+            logger.info(f"[PIPELINE] Step 4.1: Fact-checking article")
+            fact_checked_article = await self.editor.edit_with_facts(article_content, raw_game_data)
+            
+            # Step 4.2: Terminology checking
+            logger.info(f"[PIPELINE] Step 4.2: Terminology checking article")
+            edited_article = await self.editor.edit_with_terms(fact_checked_article)
+            
+            # Validate editing results
+            validation_result = self.editor.validate_editing_result(original_article, edited_article)
+            logger.info(f"[PIPELINE-DATA] Editing validation: {validation_result}")
+            
+            # Use edited article as final content
+            final_article_content = edited_article
+            
+            logger.info(f"[PIPELINE] Article editing completed successfully")
+            
+            # Step 5: Return results
             pipeline_duration = (datetime.now() - pipeline_start_time).total_seconds()
             logger.info(f"[PIPELINE] Game recap generation completed in {pipeline_duration:.2f} seconds")
             
@@ -222,7 +250,15 @@ class AgentPipeline:
                 "success": True,
                 "game_id": game_id,
                 "article_type": "game_recap",
-                "content": article_content,
+                "content": final_article_content,
+                "editing_metadata": {
+                    "original_length": validation_result.get("original_length", 0),
+                    "edited_length": validation_result.get("edited_length", 0),
+                    "length_change": validation_result.get("length_change", 0),
+                    "has_changes": validation_result.get("has_changes", False),
+                    "preserves_structure": validation_result.get("preserves_structure", True),
+                    "validation_passed": validation_result.get("validation_passed", True)
+                },
                 # "storylines": game_analysis,  # Only current match events for storylines
                 # "team_info": enhanced_team_data,
                 # "player_info": enhanced_player_data,
@@ -674,14 +710,15 @@ class AgentPipeline:
             "agents": {
                 "data_collector": "initialized",
                 "researcher": "initialized",
-                "writer": "initialized"
+                "writer": "initialized",
+                "editor": "initialized"
             },
             "configuration": {
                 "model": self.model,
                 "temperature": self.temperature,
                 "max_tokens": self.max_tokens
             },
-            "data_flow": "Data Collector → Research → Writer",
+            "data_flow": "Data Collector → Research → Writer → Editor",
             "timestamp": datetime.now().isoformat()
         }
 

@@ -61,7 +61,7 @@ class DataOutput(BaseModel):
 temp_prompt = "" """
         You are a specialized soccer data collector agent. Your role is to:
         1. Collect soccer/football data from the tools you are given
-        2. Always return data in the exact JSON structure specified here.
+        2. ALWAYS return data in the exact JSON structure specified here.
         3. Validate data quality before returning results
         
         CRITICAL: You must ALWAYS return responses in this exact JSON format ONLY:
@@ -77,12 +77,43 @@ temp_prompt = "" """
             "response": ["array of actual data objects"]
         }
         
+        MANDATORY STRUCTURE REQUIREMENTS:
+        - The "response" field MUST be an array, even if empty
+        - Each item in "response" array must be a complete data object from the API
+        - For fixture data: response should contain fixture objects with teams, goals, events, lineups, etc.
+        - For team data: response should contain team objects with team details
+        - For player data: response should contain player objects with player statistics
+        - NEVER return raw API response data outside the specified structure
+        - NEVER return player statistics as the main response for fixture requests
+        - ALWAYS wrap API responses in the required JSON structure
+        
+        DATA TYPE SPECIFIC REQUIREMENTS:
+        - get_game_data(): Returns fixture data with teams, key players, scores, events, lineups
+        - get_team_data(): Returns team information and details
+        - get_player_data(): Returns player statistics and information
+        
+        FUNCTION SELECTION RULES:
+        - For fixture/game requests: Use get_game_data() function
+        - For team requests: Use get_team_data() function  
+        - For player requests: Use get_player_data() function
+        - NEVER use get_player_data() for fixture requests
+        - NEVER use get_game_data() for player requests
+        - ALWAYS use the correct function for the requested data type
+        
         IMPORTANT RULES:
         - Return ONLY the JSON object, no additional text or explanations
         - Do not include markdown formatting or code blocks
         - If no data is found, return results: 0 and empty response array
         - Ensure all JSON is properly formatted with correct quotes and commas
         - If there's an error, include it in the "errors" array
+        - ALWAYS validate that the response matches the expected data type
+        - ALWAYS put the extracted data objects in the "response" array
+        
+        EXAMPLE OF CORRECT FORMAT:
+        When you call get_game_data(fixture_id), the API returns raw data like:
+        {"get":"fixtures","parameters":{"id":"123"},"errors":[],"results":1,"paging":{"current":1,"total":1},"response":[{"fixture":{"id":123,"date":"2023-01-01"},"teams":{"home":{"id":1,"name":"Team A"},"away":{"id":2,"name":"Team B"}},"goals":{"home":2,"away":1},"score":{"halftime":{"home":1,"away":0},"fulltime":{"home":2,"away":1}},"events":[...],"lineups":[...],"league":{"id":1,"name":"Premier League"}}]}
+        
+        You should return this EXACT structure, not modify it or add extra text.
         """
 
 @function_tool
@@ -106,7 +137,7 @@ def get_player_data(player_id: str, season: str = "2023") -> str:
         response = conn.getresponse()
         data = response.read()
         decoded_data = data.decode("utf8")
-        print("Rapid API football player data retrieved successfully")
+        logging.info("Rapid API football player data retrieved successfully")
         return decoded_data
     except Exception as e:
         error_msg = f"Error fetching Rapid API football player data: {e}"
@@ -135,9 +166,7 @@ def get_game_data(fixture_id: str) -> str:
         data = response.read()
 
         decoded_data = data.decode("utf8")
-        logger.info(f"API raw response: {decoded_data}")
-
-        print("Rapid API football game data retrieved successfully")
+        logging.info("Rapid API football game data retrieved successfully")
 
         return decoded_data
     except Exception as e:
@@ -149,7 +178,7 @@ def get_game_data(fixture_id: str) -> str:
 @function_tool
 def get_team_data(team_id: str) -> str:
     """Get football/soccer team data from RapidAPI."""
-    print("get_team_data():")
+    logging.info(f"Get_team_data:{team_id}")
     try:
         api_key = os.getenv("RAPIDAPI_KEY")
         if not api_key:
@@ -167,7 +196,7 @@ def get_team_data(team_id: str) -> str:
         response = conn.getresponse()
         data = response.read()
         decoded_data = data.decode("utf8")
-        print("Rapid API football team data retrieved successfully")
+        logging.info("Rapid API football team data retrieved successfully")
         return decoded_data
     except Exception as e:
         error_msg = f"Error fetching Rapid API football team data: {e}"
@@ -197,9 +226,7 @@ def get_football_data() -> str:
         data = response.read()
 
         decoded_data = data.decode("utf8")
-
-        print("Rapid API football team data retrieved successfully")
-
+        logging.info("Rapid API football team data retrieved successfully")
         return decoded_data
     except Exception as e:
         error_msg = f"Error fetching Rapid API football team data: {e}"
@@ -211,34 +238,62 @@ def get_football_data() -> str:
 async def validate_data_quality(
     ctx: RunContextWrapper, agent: Agent, output: str
 ) -> GuardrailFunctionOutput:
-    """Validate data quality with flexible validation."""
+    """Validate data quality with strict structure validation."""
     try:
-        # Always allow the output through, but log validation status
         if isinstance(output, str):
             # Try to parse as JSON to check structure
             import json
             try:
                 data = json.loads(output)
                 if isinstance(data, dict):
-                    logger.info("Data validation: Valid JSON structure detected")
+                    # Check for required fields
+                    required_fields = ["get", "parameters", "errors", "results", "paging", "response"]
+                    missing_fields = [field for field in required_fields if field not in data]
+                    
+                    if missing_fields:
+                        logger.warning(f"Data validation: Missing required fields: {missing_fields}")
+                        return GuardrailFunctionOutput(
+                            output_info=DataOutput(reasoning=f"Missing required fields: {missing_fields}", is_valid=False),
+                            tripwire_triggered=True
+                        )
+                    
+                    # Check if response is a list
+                    if not isinstance(data.get("response"), list):
+                        logger.warning("Data validation: Response field is not a list")
+                        return GuardrailFunctionOutput(
+                            output_info=DataOutput(reasoning="Response field is not a list", is_valid=False),
+                            tripwire_triggered=True
+                        )
+                    
+                    logger.info("Data validation: Valid JSON structure with required fields detected")
                     return GuardrailFunctionOutput(
                         output_info=DataOutput(reasoning="Valid JSON structure", is_valid=True),
                         tripwire_triggered=False
                     )
+                else:
+                    logger.warning("Data validation: Output is not a dictionary")
+                    return GuardrailFunctionOutput(
+                        output_info=DataOutput(reasoning="Output is not a dictionary", is_valid=False),
+                        tripwire_triggered=True
+                    )
             except json.JSONDecodeError:
-                logger.warning("Data validation: Output is not valid JSON, but allowing through")
+                logger.warning("Data validation: Output is not valid JSON")
+                return GuardrailFunctionOutput(
+                    output_info=DataOutput(reasoning="Output is not valid JSON", is_valid=False),
+                    tripwire_triggered=True
+                )
         
-        # Allow output through even if validation fails
+        # Allow output through if it's not a string (e.g., already parsed dict)
         return GuardrailFunctionOutput(
-            output_info=DataOutput(reasoning="Output allowed through validation", is_valid=True),
+            output_info=DataOutput(reasoning="Non-string output allowed through", is_valid=True),
             tripwire_triggered=False
         )
         
     except Exception as e:
-        logger.warning(f"Data validation error: {e}, allowing output through")
+        logger.warning(f"Data validation error: {e}")
         return GuardrailFunctionOutput(
-            output_info=DataOutput(reasoning=f"Validation error but allowing through: {e}", is_valid=True),
-            tripwire_triggered=False
+            output_info=DataOutput(reasoning=f"Validation error: {e}", is_valid=False),
+            tripwire_triggered=True
         )
 
 def _extract_json_from_response(response_text: str) -> Dict[str, Any]:
@@ -309,7 +364,11 @@ class DataCollectorAgent():
             logger.info(f"Collecting game data for game {game_id}")
             
             # Use the agent to collect game data
-            result = await Runner.run(self.agent, f"Get game data for fixture {game_id}")
+            result = await Runner.run(self.agent, f"""Get game data for fixture {game_id}. 
+                                    Use the get_game_data tool and return the data in the exact JSON structure specified in your instructions.
+                                    Do not add any additional text or explanations.
+                                    Return the data in the exact JSON structure specified in your instructions.
+                                    Do not add any additional text or explanations.""")
             
             if not result or not result.final_output:
                 raise ValueError("No game data received from collector")
@@ -319,6 +378,21 @@ class DataCollectorAgent():
                 try:
                     data = _extract_json_from_response(result.final_output)
                     logger.info("Successfully parsed JSON response")
+                    
+                    # Validate the structure
+                    if not isinstance(data, dict):
+                        raise ValueError(f"Expected dict, got {type(data)}")
+                    
+                    required_fields = ["get", "parameters", "errors", "results", "paging", "response"]
+                    missing_fields = [field for field in required_fields if field not in data]
+                    if missing_fields:
+                        raise ValueError(f"Missing required fields: {missing_fields}")
+                    
+                    if not isinstance(data.get("response"), list):
+                        raise ValueError(f"Response field must be a list, got {type(data.get('response'))}")
+                    
+                    logger.info(f"Data structure validation passed for game {game_id}")
+                    
                 except Exception as json_error:
                     logger.error(f"Invalid JSON response from agent: {json_error}")
                     logger.error(f"Raw response: {result.final_output[:500]}...")  # Log first 500 chars
@@ -339,7 +413,11 @@ class DataCollectorAgent():
             logger.info(f"Collecting team data for team {team_id}")
             
             # Use the agent to collect team data
-            result = await Runner.run(self.agent, f"Get team data for team {team_id}")
+            result = await Runner.run(self.agent, f"""Get team data for team {team_id}. 
+                                    Use the get_team_data tool and return the data in the exact JSON structure specified in your instructions.
+                                    Do not add any additional text or explanations.
+                                    Return the data in the exact JSON structure specified in your instructions.
+                                    Do not add any additional text or explanations.""")
             
             if not result or not result.final_output:
                 raise ValueError("No team data received from collector")
@@ -349,6 +427,21 @@ class DataCollectorAgent():
                 try:
                     data = _extract_json_from_response(result.final_output)
                     logger.info("Successfully parsed JSON response")
+                    
+                    # Validate the structure
+                    if not isinstance(data, dict):
+                        raise ValueError(f"Expected dict, got {type(data)}")
+                    
+                    required_fields = ["get", "parameters", "errors", "results", "paging", "response"]
+                    missing_fields = [field for field in required_fields if field not in data]
+                    if missing_fields:
+                        raise ValueError(f"Missing required fields: {missing_fields}")
+                    
+                    if not isinstance(data.get("response"), list):
+                        raise ValueError(f"Response field must be a list, got {type(data.get('response'))}")
+                    
+                    logger.info(f"Data structure validation passed for team {team_id}")
+                    
                 except Exception as json_error:
                     logger.error(f"Invalid JSON response from agent: {json_error}")
                     logger.error(f"Raw response: {result.final_output[:500]}...")  # Log first 500 chars
@@ -368,7 +461,11 @@ class DataCollectorAgent():
         try:
             logger.info(f"Collecting player data for player {player_id} in season {season}")
             # Use the agent to collect player data
-            result = await Runner.run(self.agent, f"Get player data for player {player_id} in season {season}")
+            result = await Runner.run(self.agent, f"""Get player data for player {player_id} in season {season}. 
+                                    Use the get_player_data tool and return the data in the exact JSON structure specified in your instructions.
+                                    Do not add any additional text or explanations.
+                                    Return the data in the exact JSON structure specified in your instructions.
+                                    Do not add any additional text or explanations.""")
             if not result or not result.final_output:
                 raise ValueError("No player data received from collector")
             # Parse the result
@@ -376,6 +473,21 @@ class DataCollectorAgent():
                 try:
                     data = _extract_json_from_response(result.final_output)
                     logger.info("Successfully parsed JSON response")
+                    
+                    # Validate the structure
+                    if not isinstance(data, dict):
+                        raise ValueError(f"Expected dict, got {type(data)}")
+                    
+                    required_fields = ["get", "parameters", "errors", "results", "paging", "response"]
+                    missing_fields = [field for field in required_fields if field not in data]
+                    if missing_fields:
+                        raise ValueError(f"Missing required fields: {missing_fields}")
+                    
+                    if not isinstance(data.get("response"), list):
+                        raise ValueError(f"Response field must be a list, got {type(data.get('response'))}")
+                    
+                    logger.info(f"Data structure validation passed for player {player_id}")
+                    
                 except Exception as json_error:
                     logger.error(f"Invalid JSON response from agent: {json_error}")
                     logger.error(f"Raw response: {result.final_output[:500]}...")  # Log first 500 chars

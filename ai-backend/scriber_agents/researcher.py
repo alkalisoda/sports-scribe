@@ -133,7 +133,7 @@ class ResearchAgent:
         except Exception as e:
             logger.error(f"Error generating storylines from game data: {e}")
             return ["Match analysis based on available game data", "Key moments and player performances from the data"]
-
+        
     async def get_history_from_team_data(self, team_data: dict) -> list[str]:
         """Get historical context from team data ONLY (background information).
         
@@ -278,3 +278,100 @@ class ResearchAgent:
         except Exception as e:
             logger.error(f"Error analyzing player performance: {e}")
             return ["Player performance analysis based on available data", "Individual contributions from the match data"]
+    
+    async def get_turning_points(self, game_data: dict) -> list[str]:
+        """
+        Analyze the match and return key turning points that shaped the result.
+        Focus on dramatic shifts in momentum (e.g. red cards, equalizers, late goals).
+        Args:
+            game_data: Match event data (goals, cards, substitutions, etc.)
+        Returns:
+            list[str]: 2-3 turning point statements from the match
+        """
+        logger.info("Analyzing match for turning points (game-changing moments)")
+        try:
+            prompt = f"""
+            You are analyzing THIS MATCH ONLY to extract the 2-3 most significant turning points that shaped the outcome.
+            GAME DATA (CURRENT MATCH EVENTS ONLY):
+            {game_data}
+            TURNING POINT RULES:
+            - ONLY use information explicitly in the game data
+            - DO NOT assume or invent anything
+            - Turning points must be actual game events with clear impact
+            - Be very conservative: only mention what clearly happened in this match
+            Examples of valid turning points (only if supported by data):
+            - Red cards that changed momentum
+            - Equalizing goals or go-ahead goals
+            - Goals scored late in the match
+            - Penalties awarded or missed
+            - Back-to-back goals that shifted control
+            - Impactful substitutions (e.g., sub scores shortly after entry)
+            DO NOT INCLUDE:
+            - Any background or historical data
+            - Anything not explicitly shown in match events
+            - Vague or speculative statements
+            FORMAT:
+            - Output ONLY a JSON array of 2-3 factual turning point statements
+            - Each must be a clear, specific match event
+            - No extra commentary, no markdown, no explanations
+            - Example format: ["Turning point 1", "Turning point 2", "Turning point 3"]
+            """
+            result = await Runner.run(self.agent, prompt)
+            try:
+                points = json.loads(result.final_output)
+                if isinstance(points, list):
+                    return [str(p).strip() for p in points if p]
+            except Exception:
+                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
+        except Exception as e:
+            logger.error(f"Error analyzing turning points: {e}")
+            return ["Turning point analysis based on available data"]
+        
+    async def get_event_timeline(self, game_data: dict) -> list[str]:
+        logger.info("Generating minute-by-minute event timeline")
+        prompt = f"""Create a chronological timeline of match events with timestamps.
+        Use only the following game data:
+        {game_data}"""
+        return await Runner.run(self.agent, prompt)
+
+    async def get_stat_summary(self, stat_data: dict) -> list[str]:
+        logger.info("Extracting statistical summary from match data")
+        prompt = f"""Summarize numeric match stats (possession, shots, cards, corners, etc.) using only this data:
+        {stat_data}"""
+        return await Runner.run(self.agent, prompt)
+
+    async def get_best_and_worst_moments(self, game_data: dict) -> Dict[str, str]:
+        logger.info("Finding best and worst moments in match")
+        prompt = f"""From this match data, provide:
+        - best_moment (e.g. a decisive goal)
+        - worst_moment (e.g. a missed penalty)
+        Output JSON with 'best_moment' and 'worst_moment' keys.
+        {game_data}"""
+        try:
+            result = await Runner.run(self.agent, prompt)
+            return json.loads(result.final_output)
+        except Exception as e:
+            logger.error(f"Error generating best/worst moments: {e}")
+            return {"best_moment": "Unavailable", "worst_moment": "Unavailable"}
+
+    async def get_missed_chances(self, game_data: dict) -> list[str]:
+        logger.info("Identifying missed chances from match data")
+        prompt = f"""List all missed chances or penalties that had potential impact on the match based on the following data:
+        {game_data}"""
+        try:
+            result = await Runner.run(self.agent, prompt)
+            return json.loads(result.final_output)
+        except Exception as e:
+            logger.error(f"Error identifying missed chances: {e}")
+            return ["Missed chances based on available data"]
+
+    async def get_formations_from_lineup_data(self, lineup_data: dict) -> list[str]:
+        logger.info("Extracting team formations from lineup data")
+        prompt = f"""Identify and return team formations (e.g., 4-3-3, 3-5-2) for both teams based on this lineup data:
+        {lineup_data}"""
+        try:
+            result = await Runner.run(self.agent, prompt)
+            return json.loads(result.final_output)
+        except Exception as e:
+            logger.error(f"Error identifying formations: {e}")
+            return ["Formations based on available data"]
