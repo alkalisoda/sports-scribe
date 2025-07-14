@@ -59,49 +59,80 @@ class ResearchAgent:
         logger.info("Research Agent initialized successfully")
 
     async def get_storyline_from_game_data(self, game_data: dict) -> list[str]:
-        """Get storylines from game data ONLY (current match events).
+        """Get comprehensive storylines from game data including turning points, timeline, stats, and analysis.
         
         Args:
-            game_data: Game data from Data Collector (ONLY current match events)
+            game_data: Game data from Data Collector (current match events)
             
         Returns:
-            list[str]: List of storylines based ONLY on current match events
+            list[str]: Comprehensive list of storylines including analysis
         """
-        logger.info("Generating storylines from game data (current match events only)")
+        logger.info("Generating comprehensive storylines from game data with enhanced analysis")
         
         try:
+            # Get additional analysis components from game_data
+            turning_points = await self.get_turning_points(game_data)
+            best_worst_moments = await self.get_best_and_worst_moments(game_data)
+            missed_chances = await self.get_missed_chances(game_data)
+            
+            # Get timeline and stats if available from game_data
+            event_timeline = []
+            stat_summary = []
+            formations = []
+            
+            try:
+                event_timeline = await self.get_event_timeline(game_data)
+            except Exception as e:
+                logger.warning(f"Could not generate event timeline: {e}")
+            
+            try:
+                stat_summary = await self.get_stat_summary(game_data)
+            except Exception as e:
+                logger.warning(f"Could not generate stat summary: {e}")
+            
+            try:
+                formations = await self.get_formations_from_lineup_data(game_data)
+            except Exception as e:
+                logger.warning(f"Could not generate formations: {e}")
+            
             prompt = f"""
-            You are analyzing game data for THIS SPECIFIC MATCH ONLY. Your task is to extract factual storylines that actually happened in this game.
+            You are analyzing game data for THIS SPECIFIC MATCH ONLY. Your task is to create comprehensive, engaging storylines that include multiple analysis perspectives.
 
             GAME DATA (CURRENT MATCH EVENTS ONLY):
             {game_data}
 
+            ADDITIONAL ANALYSIS DATA:
+            - Turning Points: {turning_points}
+            - Best/Worst Moments: {best_worst_moments}
+            - Missed Chances: {missed_chances}
+            - Event Timeline: {event_timeline}
+            - Statistical Summary: {stat_summary}
+            - Team Formations: {formations}
+
             CRITICAL MATCHING RULES:
-            1. ONLY use information that explicitly appears in the game data above
+            1. ONLY use information that explicitly appears in the provided data
             2. ONLY describe events that actually occurred in THIS match
-            3. DO NOT make assumptions, inferences, or interpretations
+            3. DO NOT make assumptions, inferences, or interpretations beyond the data
             4. DO NOT include any historical context or background information
-            5. DO NOT mention player or team statistics unless they appear in the match events
-            6. If information is not clearly present in the data, DO NOT include it
-            7. Focus ONLY on: goals, cards, substitutions, final score, venue, date, teams
-            8. CRITICAL: When mentioning players, teams, or events, use EXACTLY the names and details from the data
-            9. CRITICAL: Do not mix up player names, team names, or event times
-            10. CRITICAL: If a player name is unclear or incomplete in the data, do not guess or complete it
-            11. CRITICAL: Verify that each player mentioned actually participated in the specific event described
+            5. If information is not clearly present in the data, DO NOT include it
+            6. CRITICAL: When mentioning players, teams, or events, use EXACTLY the names and details from the data
+            7. CRITICAL: Do not mix up player names, team names, or event times
+            8. CRITICAL: If a player name is unclear or incomplete in the data, do not guess or complete it
 
             REQUIRED FORMAT:
-            Output ONLY a JSON array of 3-5 factual statements about THIS match.
-            Each statement must be directly supported by the game data.
-            Example format: ["Fact 1 about this match", "Fact 2 about this match", "Fact 3 about this match"]
+            Output ONLY a JSON array of 5-8 comprehensive storylines that combine multiple analysis perspectives.
+            Each statement should integrate different aspects (events, turning points, stats, etc.) when available.
+            Example format: ["Comprehensive storyline 1", "Comprehensive storyline 2", "Comprehensive storyline 3"]
 
-            VALID TOPICS (only if data supports them):
-            - Goals scored in this match (player, time, team)
-            - Cards shown in this match (player, time, type)
-            - Substitutions made in this match (player, time)
-            - Final score of this match
-            - Teams that played in this match
-            - Venue where this match was played
-            - Date when this match was played
+            STORYLINE COMPONENTS TO INCLUDE (when data supports them):
+            - Key match events (goals, cards, substitutions, final score)
+            - Turning points that changed the game's momentum
+            - Best and worst moments that defined the match
+            - Missed opportunities that could have changed the outcome
+            - Chronological flow of important events
+            - Statistical insights (possession, shots, cards, etc.)
+            - Tactical formations and their impact
+            - Teams and venue information
 
             INVALID TOPICS (do not include):
             - Player historical statistics
@@ -109,15 +140,17 @@ class ResearchAgent:
             - Previous meetings between teams
             - Season-long statistics
             - Background information not in the match data
-            - Any player or team information not explicitly in the match events
+            - Any player or team information not explicitly in the provided data
 
             Instructions:
             - Output only a JSON array of strings
             - No explanations, no markdown, no extra text
-            - Each statement must be a fact from THIS match only
+            - Each storyline should be comprehensive and engaging
+            - Combine multiple data sources when available
             - If you cannot find clear facts, output fewer statements
             - Be extremely conservative - only include what is clearly stated in the data
             - Double-check all player names, team names, and event details against the provided data
+            - Make storylines interesting and narrative-driven while staying factual
             """
             
             result = await Runner.run(self.agent, prompt)
@@ -131,8 +164,8 @@ class ResearchAgent:
                 return [line.strip() for line in result.final_output.splitlines() if line.strip()]
             
         except Exception as e:
-            logger.error(f"Error generating storylines from game data: {e}")
-            return ["Match analysis based on available game data", "Key moments and player performances from the data"]
+            logger.error(f"Error generating comprehensive storylines from game data: {e}")
+            return ["Comprehensive match analysis based on available game data", "Key moments and turning points from the match"]
         
     async def get_history_from_team_data(self, team_data: dict) -> list[str]:
         """Get historical context from team data ONLY (background information).
@@ -291,30 +324,62 @@ class ResearchAgent:
         logger.info("Analyzing match for turning points (game-changing moments)")
         try:
             prompt = f"""
-            You are analyzing THIS MATCH ONLY to extract the 2-3 most significant turning points that shaped the outcome.
-            GAME DATA (CURRENT MATCH EVENTS ONLY):
+            You are analyzing THIS SPECIFIC MATCH ONLY to extract the 2-3 most significant turning points that shaped the outcome.
+
+            GAME DATA (THIS MATCH ONLY - ALL INFORMATION MUST COME FROM HERE):
             {game_data}
-            TURNING POINT RULES:
-            - ONLY use information explicitly in the game data
-            - DO NOT assume or invent anything
-            - Turning points must be actual game events with clear impact
-            - Be very conservative: only mention what clearly happened in this match
-            Examples of valid turning points (only if supported by data):
-            - Red cards that changed momentum
-            - Equalizing goals or go-ahead goals
-            - Goals scored late in the match
-            - Penalties awarded or missed
-            - Back-to-back goals that shifted control
-            - Impactful substitutions (e.g., sub scores shortly after entry)
-            DO NOT INCLUDE:
-            - Any background or historical data
-            - Anything not explicitly shown in match events
-            - Vague or speculative statements
-            FORMAT:
-            - Output ONLY a JSON array of 2-3 factual turning point statements
-            - Each must be a clear, specific match event
-            - No extra commentary, no markdown, no explanations
-            - Example format: ["Turning point 1", "Turning point 2", "Turning point 3"]
+
+            ABSOLUTE RULES - YOU MUST FOLLOW THESE EXACTLY:
+            1. ONLY use information that explicitly appears in the game data above
+            2. ONLY identify turning points that actually occurred in THIS specific match
+            3. DO NOT make any assumptions, inferences, or interpretations beyond what is stated in the data
+            4. DO NOT include any background or historical data
+            5. DO NOT add any external knowledge or context
+            6. CRITICAL: Every turning point must be a clear, specific match event with verifiable impact
+            7. CRITICAL: Be extremely conservative - only mention what clearly happened in this match
+            8. CRITICAL: If information is unclear or missing, do not speculate or assume
+
+            VALID TURNING POINTS (only if explicitly supported by game data):
+            - Red cards that changed momentum and team dynamics
+            - Equalizing goals that brought teams level
+            - Go-ahead goals that gave a team the lead
+            - Goals scored late in the match (85+ minutes)
+            - Penalties awarded, scored, or missed
+            - Back-to-back goals that shifted control dramatically
+            - Impactful substitutions where a player scores shortly after entering
+            - Own goals that changed the course of the match
+            - Goals that broke deadlocks or extended leads significantly
+
+            STRICTLY FORBIDDEN (DO NOT INCLUDE):
+            - Any background or historical data about teams or players
+            - Anything not explicitly shown in the match events
+            - Vague or speculative statements about momentum
+            - Assumptions about psychological impact
+            - External commentary or analysis
+            - Events from other matches or seasons
+            - Player or team statistics not from this match
+
+            DATA VALIDATION REQUIREMENTS:
+            - Verify that each turning point actually occurred in this match
+            - Confirm that the timing and details match the game data exactly
+            - Ensure that the impact described is supported by the data
+            - Cross-reference all player names and team names with the data
+            - Validate that the sequence of events is accurate
+
+            REQUIRED FORMAT:
+            Output ONLY a JSON array of 2-3 factual turning point statements.
+            Each must be a clear, specific match event with demonstrable impact.
+            No extra commentary, no markdown, no explanations.
+            Example format: ["Turning point 1", "Turning point 2", "Turning point 3"]
+
+            Instructions:
+            - Output only a JSON array of strings
+            - No explanations, no markdown, no extra text
+            - Each turning point must be a specific event from this match
+            - If you cannot find clear turning points, output fewer statements
+            - Be extremely conservative - only include what is clearly stated in the data
+            - Focus on actual events with clear impact, not interpretations
+            - If data is insufficient, acknowledge the limitation rather than making assumptions
             """
             result = await Runner.run(self.agent, prompt)
             try:
@@ -329,49 +394,342 @@ class ResearchAgent:
         
     async def get_event_timeline(self, game_data: dict) -> list[str]:
         logger.info("Generating minute-by-minute event timeline")
-        prompt = f"""Create a chronological timeline of match events with timestamps.
-        Use only the following game data:
-        {game_data}"""
-        return await Runner.run(self.agent, prompt)
+        try:
+            prompt = f"""
+            You are creating a chronological timeline of events from THIS SPECIFIC MATCH ONLY.
+
+            GAME DATA (THIS MATCH ONLY - ALL INFORMATION MUST COME FROM HERE):
+            {game_data}
+
+            ABSOLUTE RULES - YOU MUST FOLLOW THESE EXACTLY:
+            1. ONLY use information that explicitly appears in the game data above
+            2. ONLY include events that actually occurred in THIS specific match
+            3. DO NOT make any assumptions, inferences, or interpretations beyond what is stated in the data
+            4. DO NOT include any background or historical data
+            5. DO NOT add any external knowledge or context
+            6. CRITICAL: Every event must be traceable to the game data
+            7. CRITICAL: Use exact timestamps and details from the data
+            8. CRITICAL: If timing information is unclear, do not guess or assume
+
+            VALID EVENTS TO INCLUDE (only if explicitly supported by game data):
+            - Goals scored (with player, time, team)
+            - Cards shown (yellow/red cards with player, time, type)
+            - Substitutions made (player in/out, time)
+            - Penalties awarded or missed
+            - Match start and end times
+            - Halftime break
+            - Any other significant match events with timestamps
+
+            STRICTLY FORBIDDEN (DO NOT INCLUDE):
+            - Any background or historical data about teams or players
+            - Events not explicitly shown in the match data
+            - Assumptions about event timing or sequence
+            - External commentary or analysis
+            - Events from other matches or seasons
+            - Player or team statistics not from this match
+
+            DATA VALIDATION REQUIREMENTS:
+            - Verify that each event actually occurred in this match
+            - Confirm that all timestamps match the game data exactly
+            - Ensure that all player names and team names are accurate
+            - Cross-reference event details with the provided data
+            - Validate that the chronological order is correct
+
+            REQUIRED FORMAT:
+            Output ONLY a JSON array of chronological event statements.
+            Each statement should include the time and specific details from the data.
+            No extra commentary, no markdown, no explanations.
+            Example format: ["Event 1 with time", "Event 2 with time", "Event 3 with time"]
+
+            Instructions:
+            - Output only a JSON array of strings
+            - No explanations, no markdown, no extra text
+            - Each event must be from this match with accurate timing
+            - If you cannot find clear events with timestamps, output fewer statements
+            - Be extremely conservative - only include what is clearly stated in the data
+            - Focus on actual events with timestamps, not interpretations
+            - If timing data is insufficient, acknowledge the limitation rather than making assumptions
+            """
+            result = await Runner.run(self.agent, prompt)
+            try:
+                timeline = json.loads(result.final_output)
+                if isinstance(timeline, list):
+                    return [str(t).strip() for t in timeline if t]
+            except Exception:
+                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
+        except Exception as e:
+            logger.error(f"Error generating event timeline: {e}")
+            return ["Event timeline based on available data"]
 
     async def get_stat_summary(self, stat_data: dict) -> list[str]:
         logger.info("Extracting statistical summary from match data")
-        prompt = f"""Summarize numeric match stats (possession, shots, cards, corners, etc.) using only this data:
-        {stat_data}"""
-        return await Runner.run(self.agent, prompt)
+        try:
+            prompt = f"""
+            You are summarizing statistical data from THIS SPECIFIC MATCH ONLY.
+
+            STATISTICAL DATA (THIS MATCH ONLY - ALL INFORMATION MUST COME FROM HERE):
+            {stat_data}
+
+            ABSOLUTE RULES - YOU MUST FOLLOW THESE EXACTLY:
+            1. ONLY use information that explicitly appears in the statistical data above
+            2. ONLY summarize statistics from THIS specific match
+            3. DO NOT make any assumptions, inferences, or interpretations beyond what is stated in the data
+            4. DO NOT include any background or historical data
+            5. DO NOT add any external knowledge or context
+            6. CRITICAL: Every statistic must be traceable to the provided data
+            7. CRITICAL: Use exact numbers and percentages from the data
+            8. CRITICAL: If statistical information is unclear, do not guess or assume
+
+            VALID STATISTICS TO INCLUDE (only if explicitly supported by data):
+            - Possession percentages for each team
+            - Shots on target and total shots
+            - Yellow and red cards
+            - Corner kicks
+            - Fouls committed
+            - Offsides
+            - Passes completed and accuracy
+            - Tackles and interceptions
+            - Any other numerical match statistics
+
+            STRICTLY FORBIDDEN (DO NOT INCLUDE):
+            - Any background or historical data about teams or players
+            - Statistics not explicitly shown in the match data
+            - Assumptions about statistical significance
+            - External commentary or analysis
+            - Statistics from other matches or seasons
+            - Player or team statistics not from this match
+
+            DATA VALIDATION REQUIREMENTS:
+            - Verify that each statistic actually comes from this match
+            - Confirm that all numbers match the data exactly
+            - Ensure that all team names are accurate
+            - Cross-reference statistics with the provided data
+            - Validate that percentages and totals are consistent
+
+            REQUIRED FORMAT:
+            Output ONLY a JSON array of statistical summary statements.
+            Each statement should include specific numbers and details from the data.
+            No extra commentary, no markdown, no explanations.
+            Example format: ["Stat summary 1", "Stat summary 2", "Stat summary 3"]
+
+            Instructions:
+            - Output only a JSON array of strings
+            - No explanations, no markdown, no extra text
+            - Each statistic must be from this match with accurate numbers
+            - If you cannot find clear statistics, output fewer statements
+            - Be extremely conservative - only include what is clearly stated in the data
+            - Focus on actual numbers and percentages, not interpretations
+            - If statistical data is insufficient, acknowledge the limitation rather than making assumptions
+            """
+            result = await Runner.run(self.agent, prompt)
+            try:
+                stats = json.loads(result.final_output)
+                if isinstance(stats, list):
+                    return [str(s).strip() for s in stats if s]
+            except Exception:
+                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
+        except Exception as e:
+            logger.error(f"Error extracting statistical summary: {e}")
+            return ["Statistical summary based on available data"]
 
     async def get_best_and_worst_moments(self, game_data: dict) -> Dict[str, str]:
         logger.info("Finding best and worst moments in match")
-        prompt = f"""From this match data, provide:
-        - best_moment (e.g. a decisive goal)
-        - worst_moment (e.g. a missed penalty)
-        Output JSON with 'best_moment' and 'worst_moment' keys.
-        {game_data}"""
         try:
+            prompt = f"""
+            You are identifying the best and worst moments from THIS SPECIFIC MATCH ONLY.
+
+            GAME DATA (THIS MATCH ONLY - ALL INFORMATION MUST COME FROM HERE):
+            {game_data}
+
+            ABSOLUTE RULES - YOU MUST FOLLOW THESE EXACTLY:
+            1. ONLY use information that explicitly appears in the game data above
+            2. ONLY identify moments that actually occurred in THIS specific match
+            3. DO NOT make any assumptions, inferences, or interpretations beyond what is stated in the data
+            4. DO NOT include any background or historical data
+            5. DO NOT add any external knowledge or context
+            6. CRITICAL: Every moment must be traceable to the game data
+            7. CRITICAL: Be extremely conservative - only mention what clearly happened in this match
+            8. CRITICAL: If information is unclear or missing, do not speculate or assume
+
+            VALID MOMENTS TO IDENTIFY (only if explicitly supported by game data):
+            - Best moment: The most decisive goal or action that determined the outcome
+            - Worst moment: The most significant missed opportunity or mistake
+            - Examples: decisive goals, missed penalties, own goals, red cards, etc.
+
+            STRICTLY FORBIDDEN (DO NOT INCLUDE):
+            - Any background or historical data about teams or players
+            - Moments not explicitly shown in the match data
+            - Assumptions about psychological impact or significance
+            - External commentary or analysis
+            - Moments from other matches or seasons
+            - Player or team statistics not from this match
+
+            DATA VALIDATION REQUIREMENTS:
+            - Verify that each moment actually occurred in this match
+            - Confirm that the details match the game data exactly
+            - Ensure that all player names and team names are accurate
+            - Cross-reference moment details with the provided data
+            - Validate that the impact described is supported by the data
+
+            REQUIRED FORMAT:
+            Output ONLY a JSON object with 'best_moment' and 'worst_moment' keys.
+            Each value should be a clear, specific moment from this match.
+            No extra commentary, no markdown, no explanations.
+            Example format: {{"best_moment": "Specific moment 1", "worst_moment": "Specific moment 2"}}
+
+            Instructions:
+            - Output only a JSON object with the specified keys
+            - No explanations, no markdown, no extra text
+            - Each moment must be from this match with accurate details
+            - If you cannot find clear moments, use "Unavailable" for that key
+            - Be extremely conservative - only include what is clearly stated in the data
+            - Focus on actual events with clear impact, not interpretations
+            - If data is insufficient, acknowledge the limitation rather than making assumptions
+            """
             result = await Runner.run(self.agent, prompt)
-            return json.loads(result.final_output)
+            try:
+                moments = json.loads(result.final_output)
+                if isinstance(moments, dict):
+                    return {
+                        "best_moment": moments.get("best_moment", "Unavailable"),
+                        "worst_moment": moments.get("worst_moment", "Unavailable")
+                    }
+            except Exception:
+                return {"best_moment": "Unavailable", "worst_moment": "Unavailable"}
         except Exception as e:
             logger.error(f"Error generating best/worst moments: {e}")
             return {"best_moment": "Unavailable", "worst_moment": "Unavailable"}
 
     async def get_missed_chances(self, game_data: dict) -> list[str]:
         logger.info("Identifying missed chances from match data")
-        prompt = f"""List all missed chances or penalties that had potential impact on the match based on the following data:
-        {game_data}"""
         try:
+            prompt = f"""
+            You are identifying missed chances from THIS SPECIFIC MATCH ONLY.
+
+            GAME DATA (THIS MATCH ONLY - ALL INFORMATION MUST COME FROM HERE):
+            {game_data}
+
+            ABSOLUTE RULES - YOU MUST FOLLOW THESE EXACTLY:
+            1. ONLY use information that explicitly appears in the game data above
+            2. ONLY identify missed chances that actually occurred in THIS specific match
+            3. DO NOT make any assumptions, inferences, or interpretations beyond what is stated in the data
+            4. DO NOT include any background or historical data
+            5. DO NOT add any external knowledge or context
+            6. CRITICAL: Every missed chance must be traceable to the game data
+            7. CRITICAL: Be extremely conservative - only mention what clearly happened in this match
+            8. CRITICAL: If information is unclear or missing, do not speculate or assume
+
+            VALID MISSED CHANCES TO IDENTIFY (only if explicitly supported by game data):
+            - Missed penalties
+            - Clear goal-scoring opportunities that were not converted
+            - Near-miss shots that hit the post or crossbar
+            - One-on-one chances that were not scored
+            - Open goal opportunities that were missed
+            - Any other significant missed opportunities with potential impact
+
+            STRICTLY FORBIDDEN (DO NOT INCLUDE):
+            - Any background or historical data about teams or players
+            - Missed chances not explicitly shown in the match data
+            - Assumptions about what might have happened
+            - External commentary or analysis
+            - Missed chances from other matches or seasons
+            - Player or team statistics not from this match
+
+            DATA VALIDATION REQUIREMENTS:
+            - Verify that each missed chance actually occurred in this match
+            - Confirm that the details match the game data exactly
+            - Ensure that all player names and team names are accurate
+            - Cross-reference missed chance details with the provided data
+            - Validate that the potential impact described is supported by the data
+
+            REQUIRED FORMAT:
+            Output ONLY a JSON array of missed chance statements.
+            Each statement should describe a specific missed opportunity from this match.
+            No extra commentary, no markdown, no explanations.
+            Example format: ["Missed chance 1", "Missed chance 2", "Missed chance 3"]
+
+            Instructions:
+            - Output only a JSON array of strings
+            - No explanations, no markdown, no extra text
+            - Each missed chance must be from this match with accurate details
+            - If you cannot find clear missed chances, output fewer statements
+            - Be extremely conservative - only include what is clearly stated in the data
+            - Focus on actual missed opportunities, not interpretations
+            - If data is insufficient, acknowledge the limitation rather than making assumptions
+            """
             result = await Runner.run(self.agent, prompt)
-            return json.loads(result.final_output)
+            try:
+                chances = json.loads(result.final_output)
+                if isinstance(chances, list):
+                    return [str(c).strip() for c in chances if c]
+            except Exception:
+                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
         except Exception as e:
             logger.error(f"Error identifying missed chances: {e}")
             return ["Missed chances based on available data"]
 
     async def get_formations_from_lineup_data(self, lineup_data: dict) -> list[str]:
         logger.info("Extracting team formations from lineup data")
-        prompt = f"""Identify and return team formations (e.g., 4-3-3, 3-5-2) for both teams based on this lineup data:
-        {lineup_data}"""
         try:
+            prompt = f"""
+            You are identifying team formations from THIS SPECIFIC MATCH ONLY.
+
+            LINEUP DATA (THIS MATCH ONLY - ALL INFORMATION MUST COME FROM HERE):
+            {lineup_data}
+
+            ABSOLUTE RULES - YOU MUST FOLLOW THESE EXACTLY:
+            1. ONLY use information that explicitly appears in the lineup data above
+            2. ONLY identify formations that were used in THIS specific match
+            3. DO NOT make any assumptions, inferences, or interpretations beyond what is stated in the data
+            4. DO NOT include any background or historical data
+            5. DO NOT add any external knowledge or context
+            6. CRITICAL: Every formation must be traceable to the lineup data
+            7. CRITICAL: Be extremely conservative - only mention what clearly appears in the data
+            8. CRITICAL: If formation information is unclear, do not guess or assume
+
+            VALID FORMATIONS TO IDENTIFY (only if explicitly supported by lineup data):
+            - Starting formations for both teams (e.g., 4-3-3, 3-5-2, 4-4-2)
+            - Formation changes during the match (if substitution data shows tactical changes)
+            - Player positions and their arrangement
+            - Any tactical setup information clearly stated in the data
+
+            STRICTLY FORBIDDEN (DO NOT INCLUDE):
+            - Any background or historical data about teams or players
+            - Formations not explicitly shown in the lineup data
+            - Assumptions about tactical preferences or playing styles
+            - External commentary or analysis
+            - Formations from other matches or seasons
+            - Player or team statistics not from this match
+
+            DATA VALIDATION REQUIREMENTS:
+            - Verify that each formation actually comes from this match
+            - Confirm that the formation details match the lineup data exactly
+            - Ensure that all team names and player positions are accurate
+            - Cross-reference formation details with the provided data
+            - Validate that the tactical setup described is supported by the data
+
+            REQUIRED FORMAT:
+            Output ONLY a JSON array of formation statements.
+            Each statement should describe a specific formation from this match.
+            No extra commentary, no markdown, no explanations.
+            Example format: ["Formation 1", "Formation 2", "Formation 3"]
+
+            Instructions:
+            - Output only a JSON array of strings
+            - No explanations, no markdown, no extra text
+            - Each formation must be from this match with accurate details
+            - If you cannot find clear formations, output fewer statements
+            - Be extremely conservative - only include what is clearly stated in the data
+            - Focus on actual tactical setups, not interpretations
+            - If formation data is insufficient, acknowledge the limitation rather than making assumptions
+            """
             result = await Runner.run(self.agent, prompt)
-            return json.loads(result.final_output)
+            try:
+                formations = json.loads(result.final_output)
+                if isinstance(formations, list):
+                    return [str(f).strip() for f in formations if f]
+            except Exception:
+                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
         except Exception as e:
             logger.error(f"Error identifying formations: {e}")
             return ["Formations based on available data"]
