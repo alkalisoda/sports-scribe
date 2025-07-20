@@ -28,27 +28,60 @@ class ResearchAgent:
             instructions="""You are a sports research agent specializing in analyzing game data, team history, and player performance. 
             Your task is to provide clear, engaging storylines and analysis that junior writers can easily understand and use.
             
-            CRITICAL REQUIREMENTS:
-            - ONLY use information that is explicitly provided in the data
-            - DO NOT invent, assume, or speculate about any facts not present in the data
-            - If data is missing or incomplete, acknowledge this limitation
-            - Base all analysis strictly on the factual data provided
-            - Do not add external knowledge or assumptions
+            CORE PRINCIPLES:
+            - ONLY use information explicitly provided in the data
+            - DO NOT invent, assume, or speculate about facts not present in the data
+            - When in doubt, exclude rather than include
+            - Base all analysis strictly on factual data provided
+            - CRITICAL: Clearly distinguish between THIS MATCH events and other matches/background
+            - CRITICAL: Only describe events that actually occurred in THIS specific match
+            - CRITICAL: If an event did not happen in THIS match, DO NOT include it
+            
+            DATA VERIFICATION RULES:
+            - Double-check every player name spelling exactly as in the data
+            - Use precise minute times: "elapsed" + "extra" format (e.g., 90+1 for elapsed:90, extra:1)
+            - Cross-reference each event with the correct player
+            - Use season format like "2021/22 season" not just "2021 season"
+            
+            TIME FORMAT RULES:
+            - "elapsed": main referee time (e.g., 90 = 90th minute)
+            - "extra": stoppage time (e.g., 1 = 1st minute of stoppage time)
+            - Combined format: "elapsed" + "extra" (e.g., 90+1 for elapsed:90, extra:1)
+            - Always use the combined format in outputs
+            
+            SUBSTITUTION LOGIC:
+            - "startXI" array = players who started the match
+            - "substitutes" array = players who were on the bench
+            - In substitution events: "player" field = who went off, "assist" field = who came on
+            - Players cannot participate in events after being substituted off
+            - Substitute players cannot participate in events before coming on
+            - Be explicit about substitution direction (off vs on)
+            
+            EXCLUSION RULES:
+            - Do not describe actions by players who were already substituted off
+            - Do not describe actions by players before they came on as substitutes
+            - Do not use vague time descriptions like "shortly after" without specific minutes
+            - Do not mix up player names (e.g., Mount vs Maguire)
+            - Do not use approximate times when exact times are available (e.g., 90 vs 90+1 for elapsed:90, extra:1)
+            - Do not use ambiguous substitution descriptions
+            - CRITICAL: Do not include events that did not happen in THIS match (e.g., Mount receiving a card when he didn't)
+            - CRITICAL: Do not fabricate events like goals, cards, or other actions not in the data
+            - CRITICAL: Do not include background/historical events as if they happened in THIS match
             
             Focus on:
-            1. Most important 3-5 storylines only (based on provided data)
-            2. Historical context between teams (from provided data only)
-            3. Individual player performances and impact (from provided data only)
-            4. Key moments and turning points (from provided data only)
-            5. Tactical and strategic insights (from provided data only)
+            1. Most important 3-5 storylines only (from THIS MATCH data only)
+            2. Historical context between teams (background information only, not THIS MATCH events)
+            3. Individual player performances and impact (from THIS MATCH events only)
+            4. Key moments and turning points (from THIS MATCH events only)
+            5. Tactical and strategic insights (from THIS MATCH data only)
             
             Guidelines:
             - Keep analysis simple and accessible for junior writers
-            - Focus on what makes this match/player/team interesting based on actual data
-            - Provide factual, objective analysis using only provided information
-            - Highlight human interest elements that are supported by the data
-            - Consider broader context and significance only if supported by the data
+            - Focus on what makes THIS MATCH interesting based on actual THIS MATCH data
+            - Provide factual, objective analysis using only THIS MATCH information
             - If data is insufficient, state what information is missing rather than making assumptions
+            - CRITICAL: Always specify when describing events - "in this match", "during this game", etc.
+            - CRITICAL: Never mix THIS MATCH events with background/historical information
             
             Always return clear, structured analysis that writers can immediately use, based solely on the provided data.""",
             name="ResearchAgent",
@@ -57,6 +90,70 @@ class ResearchAgent:
         )
         
         logger.info("Research Agent initialized successfully")
+
+    async def get_substitution_analysis(self, game_data: dict) -> list[str]:
+        """Analyze substitution events with precise verification of who came on vs who went off.
+        
+        Args:
+            game_data: Game data containing events and lineup information
+            
+        Returns:
+            list[str]: Accurate substitution statements
+        """
+        logger.info("Analyzing substitution events with precise verification")
+        
+        try:
+            prompt = f"""
+            You are analyzing substitution events from THIS SPECIFIC MATCH ONLY.
+
+            GAME DATA (THIS MATCH ONLY):
+            {game_data}
+
+            CRITICAL RULES:
+            - ONLY analyze substitutions that actually occurred in THIS MATCH
+            - Cross-reference with lineup data: "startXI" = starters, "substitutes" = bench
+            - "player" field = who went OFF, "assist" field = who came ON
+            - Verify chronological logic: players cannot act after being substituted off
+            - Use precise minute times: "elapsed" + "extra" format (e.g., 90+1 for elapsed:90, extra:1)
+            - Always specify "in this match" or "during this game" when describing events
+
+            VALID STATEMENTS (only if explicitly supported by data):
+            - "Player A was substituted off in the Xth minute of this match"
+            - "Player B came on as a substitute in the Xth minute of this match"
+            - "Player B replaced Player A in the Xth minute of this match"
+
+            STRICTLY FORBIDDEN:
+            - Substitutions not explicitly recorded in THIS MATCH data
+            - Incorrect substitution direction
+            - Players not mentioned in lineup data
+            - Actions by players after being substituted off
+            - Actions by substitutes before coming on
+            - Vague time descriptions like "shortly after" - use "elapsed" + "extra" format instead
+            - Events from other matches or background information
+
+            REQUIRED FORMAT:
+            Output ONLY a JSON array of accurate substitution statements.
+            Example format: ["Substitution statement 1", "Substitution statement 2"]
+
+            Instructions:
+            - Output only a JSON array of strings
+            - No explanations, no markdown, no extra text
+            - Be extremely conservative - only include what is clearly stated in THIS MATCH data
+            - When uncertain, exclude rather than include
+            - Always specify that events happened "in this match"
+            """
+            
+            result = await Runner.run(self.agent, prompt)
+            try:
+                substitutions = json.loads(result.final_output)
+                if isinstance(substitutions, list):
+                    return [str(s).strip() for s in substitutions if s]
+            except Exception:
+                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
+            
+        except Exception as e:
+            logger.error(f"Error analyzing substitutions: {e}")
+            return ["Substitution analysis based on available data"]
 
     async def get_storyline_from_game_data(self, game_data: dict) -> list[str]:
         """Get comprehensive storylines from game data including turning points, timeline, stats, and analysis.
@@ -74,6 +171,7 @@ class ResearchAgent:
             turning_points = await self.get_turning_points(game_data)
             best_worst_moments = await self.get_best_and_worst_moments(game_data)
             missed_chances = await self.get_missed_chances(game_data)
+            substitution_analysis = await self.get_substitution_analysis(game_data)
             
             # Get timeline and stats if available from game_data
             event_timeline = []
@@ -96,7 +194,7 @@ class ResearchAgent:
                 logger.warning(f"Could not generate formations: {e}")
             
             prompt = f"""
-            You are analyzing game data for THIS SPECIFIC MATCH ONLY. Your task is to create comprehensive, engaging storylines that include multiple analysis perspectives.
+            You are analyzing game data for THIS SPECIFIC MATCH ONLY.
 
             GAME DATA (CURRENT MATCH EVENTS ONLY):
             {game_data}
@@ -105,52 +203,50 @@ class ResearchAgent:
             - Turning Points: {turning_points}
             - Best/Worst Moments: {best_worst_moments}
             - Missed Chances: {missed_chances}
+            - Substitution Analysis: {substitution_analysis}
             - Event Timeline: {event_timeline}
             - Statistical Summary: {stat_summary}
             - Team Formations: {formations}
 
-            CRITICAL MATCHING RULES:
-            1. ONLY use information that explicitly appears in the provided data
-            2. ONLY describe events that actually occurred in THIS match
-            3. DO NOT make assumptions, inferences, or interpretations beyond the data
-            4. DO NOT include any historical context or background information
-            5. If information is not clearly present in the data, DO NOT include it
-            6. CRITICAL: When mentioning players, teams, or events, use EXACTLY the names and details from the data
-            7. CRITICAL: Do not mix up player names, team names, or event times
-            8. CRITICAL: If a player name is unclear or incomplete in the data, do not guess or complete it
+            CRITICAL RULES:
+            - ONLY use information explicitly provided in THIS MATCH data
+            - ONLY describe events that actually occurred in THIS match
+            - Use EXACTLY the names and details from THIS MATCH data
+            - Verify chronological logic - players cannot act after being substituted off
+            - Use specific minute times: "elapsed" + "extra" format (e.g., 90+1 for elapsed:90, extra:1)
+            - Double-check every player name against the exact spelling in the data
+            - Be precise about substitution direction (off vs on)
+            - When in doubt, exclude rather than include
+            - CRITICAL: Always specify "in this match", "during this game", or "of this match" when describing events
+            - CRITICAL: Do not fabricate events that did not happen in THIS match (e.g., Mount receiving a card when he didn't)
 
             REQUIRED FORMAT:
-            Output ONLY a JSON array of 5-8 comprehensive storylines that combine multiple analysis perspectives.
-            Each statement should integrate different aspects (events, turning points, stats, etc.) when available.
-            Example format: ["Comprehensive storyline 1", "Comprehensive storyline 2", "Comprehensive storyline 3"]
+            Output ONLY a JSON array of 5-8 comprehensive storylines.
+            Example format: ["Storyline 1", "Storyline 2", "Storyline 3"]
 
-            STORYLINE COMPONENTS TO INCLUDE (when data supports them):
-            - Key match events (goals, cards, substitutions, final score)
-            - Turning points that changed the game's momentum
-            - Best and worst moments that defined the match
-            - Missed opportunities that could have changed the outcome
-            - Chronological flow of important events
-            - Statistical insights (possession, shots, cards, etc.)
-            - Tactical formations and their impact
-            - Teams and venue information
+            STORYLINE COMPONENTS (when data supports them):
+            - Key match events (goals, cards, substitutions, final score) from THIS MATCH
+            - Turning points that changed the game's momentum in THIS MATCH
+            - Best and worst moments that defined THIS MATCH
+            - Missed opportunities that could have changed the outcome of THIS MATCH
+            - Statistical insights (possession, shots, cards, etc.) from THIS MATCH
+            - Teams and venue information for THIS MATCH
 
             INVALID TOPICS (do not include):
-            - Player historical statistics
-            - Team historical performance
+            - Player historical statistics from other matches
+            - Team historical performance from other matches
             - Previous meetings between teams
             - Season-long statistics
-            - Background information not in the match data
-            - Any player or team information not explicitly in the provided data
+            - Background information not in THIS MATCH data
+            - Events that did not happen in THIS MATCH
 
             Instructions:
             - Output only a JSON array of strings
             - No explanations, no markdown, no extra text
-            - Each storyline should be comprehensive and engaging
-            - Combine multiple data sources when available
-            - If you cannot find clear facts, output fewer statements
-            - Be extremely conservative - only include what is clearly stated in the data
-            - Double-check all player names, team names, and event details against the provided data
+            - Be extremely conservative - only include what is clearly stated in THIS MATCH data
             - Make storylines interesting and narrative-driven while staying factual
+            - When uncertain, exclude rather than include
+            - Always specify that events happened "in this match" or "during this game"
             """
             
             result = await Runner.run(self.agent, prompt)
@@ -248,7 +344,7 @@ class ResearchAgent:
         
         try:
             prompt = f"""
-            You are analyzing player performance from THIS SPECIFIC MATCH. Focus on what players actually did in this game.
+            You are analyzing player performance from THIS SPECIFIC MATCH.
 
             GAME CONTEXT (CURRENT MATCH EVENTS ONLY):
             {game_data}
@@ -256,48 +352,45 @@ class ResearchAgent:
             PLAYER DATA (CURRENT MATCH + HISTORICAL BACKGROUND):
             {player_data}
 
-            CRITICAL MATCHING RULES:
-            1. ONLY describe what players did in THIS match (goals, cards, substitutions, etc.)
-            2. ONLY use information that explicitly appears in the game data above
-            3. DO NOT make assumptions about player performance
-            4. DO NOT confuse historical statistics with current match events
-            5. If a player did nothing notable in this match, DO NOT mention them
-            6. Historical data is for background context only, not current performance
-            7. CRITICAL: When mentioning players, use EXACTLY the names from the match events data
-            8. CRITICAL: Do not mix up player names, event times, or team affiliations
-            9. CRITICAL: If a player name is unclear or incomplete in the data, do not guess or complete it
-            10. CRITICAL: Verify that each player mentioned actually participated in the specific event described
-            11. CRITICAL: Only mention players who have clear, verifiable actions in the match events
+            CRITICAL RULES:
+            - ONLY describe what players did in THIS match (goals, cards, substitutions, etc.)
+            - ONLY use information explicitly provided in THIS MATCH game data
+            - Use EXACTLY the names from THIS MATCH events data
+            - Verify chronological logic - players cannot act after being substituted off
+            - Use specific minute times: "elapsed" + "extra" format (e.g., 90+1 for elapsed:90, extra:1)
+            - Double-check every player name against the exact spelling in the data
+            - Be precise about substitution direction (off vs on)
+            - When in doubt, exclude rather than include
+            - CRITICAL: Do not include events that did not happen in THIS match (e.g., Mount receiving a card when he didn't)
+            - CRITICAL: Always specify "in this match", "during this game", or "of this match" when describing events
 
             REQUIRED FORMAT:
-            Output ONLY a JSON array of 3-5 factual statements about player performance in THIS match.
-            Each statement must be directly supported by the game data.
+            Output ONLY a JSON array of 3-5 factual statements about player performance.
             Example format: ["Player X scored in this match", "Player Y received a card in this match"]
 
             VALID TOPICS (only if data supports them):
-            - Goals scored by players in this match
-            - Cards received by players in this match
-            - Substitutions made by players in this match
-            - Players who started the match
-            - Players who were on the bench
-            - Specific match events involving players
+            - Goals scored by players in THIS match
+            - Cards received by players in THIS match
+            - Substitutions made by players in THIS match
+            - Players who started THIS match
+            - Players who were on the bench in THIS match
+            - Specific match events involving players in THIS match
 
             INVALID TOPICS (do not include):
-            - Player historical statistics
-            - Player season-long performance
-            - Player background information not relevant to this match
+            - Player historical statistics from other matches
+            - Player season-long performance from other matches
+            - Player background information not relevant to THIS match
             - Assumptions about player performance
-            - Any information not clearly stated in the match data
-            - Any player not explicitly mentioned in the match events
+            - Any information not clearly stated in THIS MATCH data
+            - Events that did not happen in THIS match
 
             Instructions:
             - Output only a JSON array of strings
             - No explanations, no markdown, no extra text
-            - Each statement must be about THIS match only
-            - If you cannot find clear player facts from this match, output fewer statements
-            - Be extremely conservative - only include what is clearly stated in the match data
-            - Focus on actual events, not interpretations or background
-            - Double-check all player names and event details against the provided match data
+            - Be extremely conservative - only include what is clearly stated in THIS MATCH data
+            - Focus on actual events from THIS match, not interpretations or background
+            - When uncertain, exclude rather than include
+            - Always specify that events happened "in this match" or "during this game"
             """
             
             result = await Runner.run(self.agent, prompt)
@@ -338,6 +431,9 @@ class ResearchAgent:
             6. CRITICAL: Every turning point must be a clear, specific match event with verifiable impact
             7. CRITICAL: Be extremely conservative - only mention what clearly happened in this match
             8. CRITICAL: If information is unclear or missing, do not speculate or assume
+            9. CRITICAL: If an event did not explicitly happen, DO NOT include it as a turning point
+            10. CRITICAL: Only include events that are clearly documented in the data
+            11. CRITICAL: When in doubt about whether something was a turning point, exclude it
 
             VALID TURNING POINTS (only if explicitly supported by game data):
             - Red cards that changed momentum and team dynamics
@@ -365,6 +461,7 @@ class ResearchAgent:
             - Ensure that the impact described is supported by the data
             - Cross-reference all player names and team names with the data
             - Validate that the sequence of events is accurate
+            - Verify that each player mentioned actually participated in the specific event described
 
             REQUIRED FORMAT:
             Output ONLY a JSON array of 2-3 factual turning point statements.
@@ -380,6 +477,10 @@ class ResearchAgent:
             - Be extremely conservative - only include what is clearly stated in the data
             - Focus on actual events with clear impact, not interpretations
             - If data is insufficient, acknowledge the limitation rather than making assumptions
+            - Only mention players with clear, verifiable actions in match events
+            - EXCLUSION PRINCIPLE: If an event did not happen, DO NOT include it as a turning point
+            - EXCLUSION PRINCIPLE: When uncertain, exclude rather than include
+            - EXCLUSION PRINCIPLE: Only include events that are clearly documented in the data
             """
             result = await Runner.run(self.agent, prompt)
             try:
@@ -410,6 +511,9 @@ class ResearchAgent:
             6. CRITICAL: Every event must be traceable to the game data
             7. CRITICAL: Use exact timestamps and details from the data
             8. CRITICAL: If timing information is unclear, do not guess or assume
+            9. CRITICAL: If an event did not explicitly happen, DO NOT include it in the timeline
+            10. CRITICAL: Only include events that are clearly documented in the data
+            11. CRITICAL: When in doubt about whether an event occurred, exclude it
 
             VALID EVENTS TO INCLUDE (only if explicitly supported by game data):
             - Goals scored (with player, time, team)
@@ -434,6 +538,7 @@ class ResearchAgent:
             - Ensure that all player names and team names are accurate
             - Cross-reference event details with the provided data
             - Validate that the chronological order is correct
+            - Verify that each player mentioned actually participated in the specific event described
 
             REQUIRED FORMAT:
             Output ONLY a JSON array of chronological event statements.
@@ -449,6 +554,10 @@ class ResearchAgent:
             - Be extremely conservative - only include what is clearly stated in the data
             - Focus on actual events with timestamps, not interpretations
             - If timing data is insufficient, acknowledge the limitation rather than making assumptions
+            - Only mention players with clear, verifiable actions in match events
+            - EXCLUSION PRINCIPLE: If an event did not happen, DO NOT include it in the timeline
+            - EXCLUSION PRINCIPLE: When uncertain, exclude rather than include
+            - EXCLUSION PRINCIPLE: Only include events that are clearly documented in the data
             """
             result = await Runner.run(self.agent, prompt)
             try:
@@ -550,6 +659,9 @@ class ResearchAgent:
             6. CRITICAL: Every moment must be traceable to the game data
             7. CRITICAL: Be extremely conservative - only mention what clearly happened in this match
             8. CRITICAL: If information is unclear or missing, do not speculate or assume
+            9. CRITICAL: If a moment did not explicitly happen, DO NOT include it
+            10. CRITICAL: Only include moments that are clearly documented in the data
+            11. CRITICAL: When in doubt about whether a moment occurred, exclude it
 
             VALID MOMENTS TO IDENTIFY (only if explicitly supported by game data):
             - Best moment: The most decisive goal or action that determined the outcome
@@ -570,6 +682,7 @@ class ResearchAgent:
             - Ensure that all player names and team names are accurate
             - Cross-reference moment details with the provided data
             - Validate that the impact described is supported by the data
+            - Verify that each player mentioned actually participated in the specific event described
 
             REQUIRED FORMAT:
             Output ONLY a JSON object with 'best_moment' and 'worst_moment' keys.
@@ -585,6 +698,10 @@ class ResearchAgent:
             - Be extremely conservative - only include what is clearly stated in the data
             - Focus on actual events with clear impact, not interpretations
             - If data is insufficient, acknowledge the limitation rather than making assumptions
+            - Only mention players with clear, verifiable actions in match events
+            - EXCLUSION PRINCIPLE: If a moment did not happen, DO NOT include it
+            - EXCLUSION PRINCIPLE: When uncertain, exclude rather than include
+            - EXCLUSION PRINCIPLE: Only include moments that are clearly documented in the data
             """
             result = await Runner.run(self.agent, prompt)
             try:
@@ -618,6 +735,9 @@ class ResearchAgent:
             6. CRITICAL: Every missed chance must be traceable to the game data
             7. CRITICAL: Be extremely conservative - only mention what clearly happened in this match
             8. CRITICAL: If information is unclear or missing, do not speculate or assume
+            9. CRITICAL: If a missed chance did not explicitly happen, DO NOT include it
+            10. CRITICAL: Only include missed chances that are clearly documented in the data
+            11. CRITICAL: When in doubt about whether a missed chance occurred, exclude it
 
             VALID MISSED CHANCES TO IDENTIFY (only if explicitly supported by game data):
             - Missed penalties
@@ -641,6 +761,7 @@ class ResearchAgent:
             - Ensure that all player names and team names are accurate
             - Cross-reference missed chance details with the provided data
             - Validate that the potential impact described is supported by the data
+            - Verify that each player mentioned actually participated in the specific event described
 
             REQUIRED FORMAT:
             Output ONLY a JSON array of missed chance statements.
@@ -656,6 +777,10 @@ class ResearchAgent:
             - Be extremely conservative - only include what is clearly stated in the data
             - Focus on actual missed opportunities, not interpretations
             - If data is insufficient, acknowledge the limitation rather than making assumptions
+            - Only mention players with clear, verifiable actions in match events
+            - EXCLUSION PRINCIPLE: If a missed chance did not happen, DO NOT include it
+            - EXCLUSION PRINCIPLE: When uncertain, exclude rather than include
+            - EXCLUSION PRINCIPLE: Only include missed chances that are clearly documented in the data
             """
             result = await Runner.run(self.agent, prompt)
             try:
@@ -686,6 +811,9 @@ class ResearchAgent:
             6. CRITICAL: Every formation must be traceable to the lineup data
             7. CRITICAL: Be extremely conservative - only mention what clearly appears in the data
             8. CRITICAL: If formation information is unclear, do not guess or assume
+            9. CRITICAL: If a formation is not clearly documented, DO NOT include it
+            10. CRITICAL: Only include formations that are explicitly stated in the data
+            11. CRITICAL: When in doubt about formation details, exclude rather than include
 
             VALID FORMATIONS TO IDENTIFY (only if explicitly supported by lineup data):
             - Starting formations for both teams (e.g., 4-3-3, 3-5-2, 4-4-2)
@@ -722,6 +850,9 @@ class ResearchAgent:
             - Be extremely conservative - only include what is clearly stated in the data
             - Focus on actual tactical setups, not interpretations
             - If formation data is insufficient, acknowledge the limitation rather than making assumptions
+            - EXCLUSION PRINCIPLE: If a formation is not documented, DO NOT include it
+            - EXCLUSION PRINCIPLE: When uncertain, exclude rather than include
+            - EXCLUSION PRINCIPLE: Only include formations that are clearly documented in the data
             """
             result = await Runner.run(self.agent, prompt)
             try:

@@ -42,6 +42,9 @@ class Editor:
         You are a professional sports fact-checker specializing in football/soccer.
         Your task is to verify the factual accuracy of sports articles against provided game data.
         
+        ABSOLUTE RULE:
+        - You MUST ONLY use the provided game data for this specific match. DO NOT use any historical data, external knowledge, or make any assumptions not explicitly supported by the game data. If information is missing, do not invent or speculate.
+        
         CRITICAL INSTRUCTIONS:
         1. Compare the article content with the provided game data
         2. Identify any factual errors or inconsistencies
@@ -101,6 +104,9 @@ class Editor:
         
         You are a professional sports terminology expert specializing in football/soccer.
         Your task is to verify and correct sports terminology usage in articles.
+        
+        ABSOLUTE RULE:
+        - You MUST ONLY use the provided game data for this specific match. DO NOT use any historical data, external knowledge, or make any assumptions not explicitly supported by the game data. If information is missing, do not invent or speculate.
         
         CRITICAL INSTRUCTIONS:
         1. Review the article for sports terminology accuracy

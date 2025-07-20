@@ -70,7 +70,7 @@ class AgentPipeline:
             # Step 1: Data Collection
             logger.info(f"[PIPELINE] Step 1: Collecting game data for {game_id}")
             raw_game_data = await self._collect_game_data(game_id)
-            logger.info(f"[PIPELINE] Raw game data:{raw_game_data}")
+            # logger.info(f"[PIPELINE] Raw game data:{raw_game_data}")
             if not raw_game_data:
                 raise ValueError(f"Failed to collect data for game {game_id}")
             

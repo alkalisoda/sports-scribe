@@ -28,6 +28,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+GAME_ID = "1208021"
 
 async def generate_game_recap_example():
     """Example of generating a game recap using the pipeline."""
@@ -48,7 +49,7 @@ async def generate_game_recap_example():
         
         # Generate a game recap
         logger.info("📝 Generating game recap...")
-        game_id = "710930"  # Example game ID
+        game_id = GAME_ID
         
         start_time = datetime.now()
         result = await pipeline.generate_game_recap(game_id)
@@ -128,7 +129,7 @@ async def test_pipeline_components():
         
         # Test data collection
         logger.info("📊 Testing data collection...")
-        game_data = await pipeline._collect_game_data("710930")
+        game_data = await pipeline._collect_game_data(GAME_ID)
         logger.info(f"✅ Data collection: {'Success' if game_data else 'Failed'}")
         
         # Test researcher
