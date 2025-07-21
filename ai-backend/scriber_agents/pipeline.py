@@ -91,16 +91,32 @@ class AgentPipeline:
             
             logger.info(f"[PIPELINE] Raw game data collected successfully")
             
-            # Step 1.5: Extract team and player information
-            logger.info(f"[PIPELINE] Step 1.5: Extracting team and player information")
+            # Step 1.5: Extract compact game data format
+            logger.info(f"[PIPELINE] Step 1.5: Extracting compact game data format")
             try:
+                compact_game_data = self.extract_compact_game_data(raw_game_data)
                 team_info = self.extract_team_info(raw_game_data)
                 player_info = self.extract_player_info(raw_game_data)
             except Exception as e:
-                logger.error(f"[PIPELINE] Error extracting team and player information: {e}")
-                raise ValueError(f"Failed to extract team and player information: {e}")
+                logger.error(f"[PIPELINE] Error extracting compact game data: {e}")
+                raise ValueError(f"Failed to extract compact game data: {e}")
             
-            # Log extracted information
+            # Log compact data information
+            logger.info(f"[PIPELINE-DATA] Compact game data extracted:")
+            logger.info(f"[PIPELINE-DATA]   Type: {type(compact_game_data)}")
+            if isinstance(compact_game_data, dict) and "error" not in compact_game_data:
+                events_count = len(compact_game_data.get("events", []))
+                players_teams = len(compact_game_data.get("players", []))
+                stats_teams = len(compact_game_data.get("statistics", []))
+                lineups_teams = len(compact_game_data.get("lineups", []))
+                logger.info(f"[PIPELINE-DATA]   Events: {events_count}")
+                logger.info(f"[PIPELINE-DATA]   Player teams: {players_teams}")
+                logger.info(f"[PIPELINE-DATA]   Statistics teams: {stats_teams}")
+                logger.info(f"[PIPELINE-DATA]   Lineup teams: {lineups_teams}")
+            else:
+                logger.warning(f"[PIPELINE-DATA]   Compact data error: {compact_game_data.get('error', 'Unknown error')}")
+            
+            # Log team and player info for enhanced data collection
             logger.info(f"[PIPELINE-DATA] Team info extracted:")
             logger.info(f"[PIPELINE-DATA]   Type: {type(team_info)}")
             if isinstance(team_info, dict) and "error" not in team_info:
@@ -121,7 +137,7 @@ class AgentPipeline:
             else:
                 logger.warning(f"[PIPELINE-DATA]   Player info error: {player_info.get('error', 'Unknown error')}")
             
-            logger.info(f"[PIPELINE] Team and player information extracted successfully")
+            logger.info(f"[PIPELINE] Compact game data and team/player information extracted successfully")
             
             # Step 1.6: Collect enhanced team and player data using data collector
             logger.info(f"[PIPELINE] Step 1.6: Collecting enhanced team and player data")
@@ -162,9 +178,9 @@ class AgentPipeline:
             # Step 2: Research and generate storylines
             logger.info(f"[PIPELINE] Step 2: Conducting research and generating storylines")
             
-            # Step 2.1: Analyze game data for storylines
+            # Step 2.1: Analyze game data for storylines (using compact data)
             logger.info(f"[PIPELINE] Step 2.1: Analyzing game data for storylines")
-            game_analysis = await self.researcher.get_storyline_from_game_data(raw_game_data)
+            game_analysis = await self.researcher.get_storyline_from_game_data(compact_game_data)
             logger.info(f"[PIPELINE-DATA] Game analysis storylines: {len(game_analysis) if isinstance(game_analysis, list) else 'Not a list'}")
 
             # Step 2.2: Analyze historical context between teams
@@ -172,9 +188,9 @@ class AgentPipeline:
             historical_context = await self.researcher.get_history_from_team_data(enhanced_team_data)
             logger.info(f"[PIPELINE-DATA] Historical context storylines: {len(historical_context) if isinstance(historical_context, list) else 'Not a list'}")
 
-            # Step 2.3: Analyze individual player performances
+            # Step 2.3: Analyze individual player performances (using compact data)
             logger.info(f"[PIPELINE] Step 2.3: Analyzing individual player performances")
-            player_performance_analysis = await self.researcher.get_performance_from_player_game_data(enhanced_player_data, raw_game_data)
+            player_performance_analysis = await self.researcher.get_performance_from_player_game_data(enhanced_player_data, compact_game_data)
             logger.info(f"[PIPELINE-DATA] Player performance storylines: {len(player_performance_analysis) if isinstance(player_performance_analysis, list) else 'Not a list'}")
             
             # Combine all research data into a comprehensive structure
@@ -198,8 +214,8 @@ class AgentPipeline:
             # Step 3: Generate article content
             logger.info(f"[PIPELINE] Step 3: Generating article content")
             
-            # Prepare data for writer
-            game_info = raw_game_data
+            # Prepare data for writer (using compact data format)
+            game_info = compact_game_data
             research_for_writer = comprehensive_research_data
             
             # Log the data being passed to writer for debugging
@@ -227,7 +243,7 @@ class AgentPipeline:
             
             # Step 4.1: Fact-checking
             logger.info(f"[PIPELINE] Step 4.1: Fact-checking article")
-            fact_checked_article = await self.editor.edit_with_facts(article_content, raw_game_data)
+            fact_checked_article = await self.editor.edit_with_facts(article_content, compact_game_data)
             
             # Step 4.2: Terminology checking
             logger.info(f"[PIPELINE] Step 4.2: Terminology checking article")
@@ -259,26 +275,16 @@ class AgentPipeline:
                     "preserves_structure": validation_result.get("preserves_structure", True),
                     "validation_passed": validation_result.get("validation_passed", True)
                 },
-                # "storylines": game_analysis,  # Only current match events for storylines
-                # "team_info": enhanced_team_data,
-                # "player_info": enhanced_player_data,
-                # "research_data": comprehensive_research_data,
-                # "historical_context": historical_context,
-                # "player_performance_analysis": player_performance_analysis,
-                # "metadata": {
-                #     "generated_at": datetime.now().isoformat(),
-                #     "pipeline_duration": pipeline_duration,
-                #     "data_sources": ["rapidapi_football"],
-                #     "model_used": self.model,
-                #     "format_manager_used": False,
-                #     "team_info_extracted": "error" not in team_info,
-                #     "player_info_extracted": "error" not in player_info,
-                #     "enhanced_team_data_collected": "error" not in enhanced_team_data,
-                #     "enhanced_player_data_collected": "error" not in enhanced_player_data,
-                #     "historical_context_analyzed": "error" not in historical_context,
-                #     "player_performance_analyzed": "error" not in player_performance_analysis,
-                #     "comprehensive_storylines_generated": len(game_analysis) > 0
-                # }
+                "data_format_metadata": {
+                    "used_compact_format": True,
+                    "compact_data_structure": {
+                        "match_info": "extracted",
+                        "events": len(compact_game_data.get("events", [])) if isinstance(compact_game_data, dict) else 0,
+                        "players": len(compact_game_data.get("players", [])) if isinstance(compact_game_data, dict) else 0,
+                        "statistics_teams": len(compact_game_data.get("statistics", [])) if isinstance(compact_game_data, dict) else 0,
+                        "lineups_teams": len(compact_game_data.get("lineups", [])) if isinstance(compact_game_data, dict) else 0
+                    }
+                }
             }
             
         except Exception as e:
@@ -721,6 +727,346 @@ class AgentPipeline:
             "data_flow": "Data Collector → Research → Writer → Editor",
             "timestamp": datetime.now().isoformat()
         }
+
+    def extract_compact_game_data(self, raw_game_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract and recombine important game data into a compact format for LLM input.
+        
+        Args:
+            raw_game_data: Raw game data from API response
+        Returns:
+            Dictionary containing compact game data with the following structure:
+            {
+                "match_info": {...},      # Basic match information
+                "events": [...],          # Key event stream (up to 20)
+                "players": [...],         # Key players list (from key_players)
+                "statistics": [...],      # Team statistics (original structure)
+                "lineups": [...]          # Lineup structure (original)
+            }
+        """
+        try:
+            logger.info("[PIPELINE] Extracting compact game data from raw data")
+            
+            # Extract response data
+            response_list = raw_game_data.get("response", [])
+            if not response_list:
+                logger.warning("[PIPELINE] No response data found in raw_game_data")
+                return {"error": "No response data available"}
+            
+            fixture_data = response_list[0]
+            
+            # 1. Match information
+            match_info = self._extract_match_info(fixture_data)
+            
+            # 2. Key events (up to 20)
+            events = self._extract_events(fixture_data, max_events=20)
+            
+            # 3. Key players list (from key_players)
+            player_info = self.extract_player_info(raw_game_data)
+            players = player_info.get("key_players", [])
+            
+            # 4. Team statistics (original structure)
+            statistics = self._extract_team_statistics(fixture_data)
+            
+            # 5. Lineup structure (original)
+            lineups = self._extract_lineups(fixture_data)
+            
+            # Combine into compact format
+            compact_data = {
+                "match_info": match_info,
+                "events": events,
+                "players": players,  # Use only key players
+                "statistics": statistics,
+                "lineups": lineups
+            }
+            
+            logger.info(f"[PIPELINE] Successfully extracted compact game data")
+            logger.info(f"[PIPELINE-DATA] Compact data structure:")
+            logger.info(f"[PIPELINE-DATA]   Events: {len(events)}")
+            logger.info(f"[PIPELINE-DATA]   Key players: {len(players)}")
+            logger.info(f"[PIPELINE-DATA]   Statistics teams: {len(statistics)}")
+            logger.info(f"[PIPELINE-DATA]   Lineup teams: {len(lineups)}")
+            
+            return compact_data
+            
+        except Exception as e:
+            logger.error(f"[PIPELINE] Error extracting compact game data: {e}")
+            return {"error": f"Failed to extract compact game data: {str(e)}"}
+
+    def _extract_match_info(self, fixture_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract match information (比赛信息)."""
+        try:
+            fixture = fixture_data.get("fixture", {})
+            venue = fixture.get("venue", {})
+            teams = fixture_data.get("teams", {})
+            league = fixture_data.get("league", {})
+            score = fixture_data.get("score", {})
+            
+            match_info = {
+                "fixture": {
+                    "date": fixture.get("date"),
+                    "venue": {
+                        "name": venue.get("name"),
+                        "city": venue.get("city")
+                    }
+                },
+                "league": {
+                    "name": league.get("name"),
+                    "season": league.get("season"),
+                    "round": league.get("round")
+                },
+                "teams": {
+                    "home": {
+                        "id": teams.get("home", {}).get("id"),
+                        "name": teams.get("home", {}).get("name")
+                    },
+                    "away": {
+                        "id": teams.get("away", {}).get("id"),
+                        "name": teams.get("away", {}).get("name")
+                    }
+                },
+                "score": {
+                    "fulltime": score.get("fulltime", {})
+                }
+            }
+            
+            return match_info
+            
+        except Exception as e:
+            logger.error(f"[PIPELINE] Error extracting match info: {e}")
+            return {"error": f"Failed to extract match info: {str(e)}"}
+
+    def _extract_events(self, fixture_data: Dict[str, Any], max_events: int = 20) -> List[Dict[str, Any]]:
+        """Extract key events (Key event stream) - limited to max_events.
+        
+        Pre-processes events to eliminate ambiguity, especially for substitutions.
+        """
+        try:
+            events = fixture_data.get("events", [])
+            
+            # Sort events by time and limit to max_events
+            sorted_events = sorted(events, key=lambda x: x.get("time", {}).get("elapsed", 0))
+            limited_events = sorted_events[:max_events]
+            
+            extracted_events = []
+            for event in limited_events:
+                event_type = event.get("type")
+                
+                # Special handling for substitution events to eliminate ambiguity
+                if event_type == "subst":
+                    extracted_event = self._process_substitution_event(event)
+                # Special handling for goal events to clarify assist meaning
+                elif event_type == "Goal":
+                    extracted_event = self._process_goal_event(event)
+                # Special handling for card events to exclude from player performance
+                elif event_type == "Card":
+                    extracted_event = self._process_card_event(event)
+                else:
+                    # Default event processing
+                    extracted_event = {
+                        "event_type": event_type,
+                        "time": {
+                            "elapsed": event.get("time", {}).get("elapsed")
+                        },
+                        "player": {
+                            "name": event.get("player", {}).get("name")
+                        },
+                        "team": {
+                            "name": event.get("team", {}).get("name")
+                        }
+                    }
+                    
+                    # Add event-specific details
+                    if event.get("detail"):
+                        extracted_event["detail"] = event.get("detail")
+                    if event.get("assist"):
+                        extracted_event["assist"] = {
+                            "name": event.get("assist", {}).get("name")
+                        }
+                    if event.get("comments"):
+                        extracted_event["comments"] = event.get("comments")
+                
+                extracted_events.append(extracted_event)
+            
+            return extracted_events
+            
+        except Exception as e:
+            logger.error(f"[PIPELINE] Error extracting events: {e}")
+            return []
+
+    def _process_substitution_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
+        """Process substitution events to eliminate ambiguity.
+        
+        Converts the confusing "player"/"assist" structure to clear "in"/"out" structure.
+        """
+        try:
+            player_off = event.get("player", {}).get("name")
+            player_on = event.get("assist", {}).get("name")
+            
+            return {
+                "event_type": "substitution",
+                "time": {
+                    "elapsed": event.get("time", {}).get("elapsed")
+                },
+                "team": {
+                    "name": event.get("team", {}).get("name")
+                },
+                "in": player_on,      # Substitute in
+                "out": player_off,    # Substitute out
+                "minute": event.get("time", {}).get("elapsed")
+            }
+        except Exception as e:
+            logger.error(f"[PIPELINE] Error processing substitution event: {e}")
+            return {"event_type": "substitution", "error": str(e)}
+
+    def _process_goal_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
+        """Process goal events to clarify assist meaning.
+        
+        Ensures "assist" is clearly understood as goal assist, not substitution assist.
+        """
+        try:
+            return {
+                "event_type": "goal",
+                "time": {
+                    "elapsed": event.get("time", {}).get("elapsed")
+                },
+                "team": {
+                    "name": event.get("team", {}).get("name")
+                },
+                "scorer": event.get("player", {}).get("name"),
+                "assist": event.get("assist", {}).get("name") if event.get("assist") else None,
+                "minute": event.get("time", {}).get("elapsed")
+            }
+        except Exception as e:
+            logger.error(f"[PIPELINE] Error processing goal event: {e}")
+            return {"event_type": "goal", "error": str(e)}
+
+    def _process_card_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
+        """Process card events to mark them as disciplinary actions.
+        
+        Marks cards as disciplinary to prevent inclusion in player performance analysis.
+        """
+        try:
+            return {
+                "event_type": "card",
+                "time": {
+                    "elapsed": event.get("time", {}).get("elapsed")
+                },
+                "team": {
+                    "name": event.get("team", {}).get("name")
+                },
+                "player": event.get("player", {}).get("name"),
+                "card_type": event.get("detail"),  # "Yellow Card" or "Red Card"
+                "minute": event.get("time", {}).get("elapsed"),
+                "is_disciplinary": True  # Flag to exclude from player performance
+            }
+        except Exception as e:
+            logger.error(f"[PIPELINE] Error processing card event: {e}")
+            return {"event_type": "card", "error": str(e)}
+
+    def _extract_player_stats(self, fixture_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract player statistics - grouped by team, only players who played."""
+        try:
+            players_data = fixture_data.get("players", [])
+            teams_by_id = {}
+            
+            # Group players by team
+            for team_players in players_data:
+                team_id = team_players.get("team", {}).get("id")
+                team_name = team_players.get("team", {}).get("name")
+                
+                if team_id not in teams_by_id:
+                    teams_by_id[team_id] = {
+                        "team_id": team_id,
+                        "players": []
+                    }
+                
+                # Process players who actually played (minutes != None)
+                for player in team_players.get("players", []):
+                    games = player.get("games", {})
+                    if games.get("minutes") is not None:  # Only include players who played
+                        extracted_player = {
+                            "name": player.get("player", {}).get("name"),
+                            "rating": str(player.get("statistics", [{}])[0].get("games", {}).get("rating", "N/A")),
+                            "games": {
+                                "minutes": games.get("minutes"),
+                                "position": games.get("position")
+                            },
+                            "passes": {
+                                "total": player.get("statistics", [{}])[0].get("passes", {}).get("total"),
+                                "accuracy": str(player.get("statistics", [{}])[0].get("passes", {}).get("accuracy", "N/A"))
+                            },
+                            "tackles": {
+                                "total": player.get("statistics", [{}])[0].get("tackles", {}).get("total")
+                            },
+                            "duels": {
+                                "total": player.get("statistics", [{}])[0].get("duels", {}).get("total"),
+                                "won": player.get("statistics", [{}])[0].get("duels", {}).get("won")
+                            },
+                            "shots": {
+                                "total": player.get("statistics", [{}])[0].get("shots", {}).get("total")
+                            },
+                            "goals": {
+                                "total": player.get("statistics", [{}])[0].get("goals", {}).get("total")
+                            }
+                        }
+                        teams_by_id[team_id]["players"].append(extracted_player)
+            
+            return list(teams_by_id.values())
+            
+        except Exception as e:
+            logger.error(f"[PIPELINE] Error extracting player stats: {e}")
+            return []
+
+    def _extract_team_statistics(self, fixture_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract team statistics - original structure."""
+        try:
+            statistics = fixture_data.get("statistics", [])
+            
+            # Return the original structure as requested
+            extracted_statistics = []
+            for team_stats in statistics:
+                extracted_team_stats = {
+                    "team": {
+                        "id": team_stats.get("team", {}).get("id"),
+                        "name": team_stats.get("team", {}).get("name")
+                    },
+                    "statistics": team_stats.get("statistics", [])
+                }
+                extracted_statistics.append(extracted_team_stats)
+            
+            return extracted_statistics
+            
+        except Exception as e:
+            logger.error(f"[PIPELINE] Error extracting team statistics: {e}")
+            return []
+
+    def _extract_lineups(self, fixture_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract lineup information - original structure."""
+        try:
+            lineups = fixture_data.get("lineups", [])
+            
+            # Return the original structure as requested
+            extracted_lineups = []
+            for lineup in lineups:
+                extracted_lineup = {
+                    "team": {
+                        "id": lineup.get("team", {}).get("id"),
+                        "name": lineup.get("team", {}).get("name")
+                    },
+                    "coach": {
+                        "name": lineup.get("coach", {}).get("name")
+                    },
+                    "formation": lineup.get("formation"),
+                    "startXI": lineup.get("startXI", []),
+                    "substitutes": lineup.get("substitutes", [])
+                }
+                extracted_lineups.append(extracted_lineup)
+            
+            return extracted_lineups
+            
+        except Exception as e:
+            logger.error(f"[PIPELINE] Error extracting lineups: {e}")
+            return []
 
 
 # Legacy ArticlePipeline class for backward compatibility

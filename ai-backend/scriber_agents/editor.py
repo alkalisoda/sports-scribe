@@ -68,11 +68,15 @@ class Editor:
         - "startXI" = players who started the match
         - "substitutes" = players who were on the bench
         - In events, "type": "subst" means a substitution occurred
-        - Check the "player" field to see WHO was substituted
-        - Check the "assist" field to see WHO came on as replacement
+        - Check the "player" field to see WHO was substituted OFF
+        - Check the "assist" field to see WHO came ON as replacement
+        - CRITICAL: ONLY mention substitutions when BOTH "player" AND "assist" fields are present
+        - If "assist" field is null or missing, DO NOT mention the substitution at all
         - Example: If player A is in "startXI" and player B is in "substitutes", and there's a "subst" event with player A and assist B, then B replaced A
         - Focus on significant substitutions that impact the game
-        - Only add missing substitutions if they are strategically important
+        - Only add missing substitutions if they are strategically important AND have complete data
+        - DO NOT guess or assume who came on as a substitute
+        - DO NOT mention partial substitution information (e.g., "Player X was substituted off" without knowing who replaced them)
         
         SEASON INFORMATION:
         - Check the "league.season" field for the correct season

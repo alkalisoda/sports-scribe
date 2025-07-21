@@ -82,6 +82,12 @@ class WriterAgent:
             - Use this as your main source for describing what happened in the game
             - Focus on: goals, cards, substitutions, key moments, final score, venue, date
 
+            SUBSTITUTION DATA STRUCTURE:
+            - Substitution events have: "player" (who went OFF), "assist" (who came ON), "time", "detail"
+            - If "assist" is null/missing, the substitution data is incomplete
+            - Lineup data shows: "startXI" (starters), "substitutes" (bench players)
+            - Only mention substitutions when both "player" and "assist" fields are present
+
             HISTORICAL/BACKGROUND DATA (Context Only - Use sparingly for introduction/context):
             - Historical Context: {historical_context}
             - This contains background information, historical context, and analysis
@@ -100,6 +106,16 @@ class WriterAgent:
             - Only mention players who have clear, verifiable actions in the match events
             - Double-check all player names, team names, and event details against the provided data
 
+            CRITICAL SUBSTITUTION RULES:
+            - ONLY mention substitutions when you have COMPLETE information about who went OFF and who came ON
+            - In substitution events: "player" field = who went OFF, "assist" field = who came ON
+            - If "assist" field is null or missing, DO NOT mention the substitution at all
+            - DO NOT guess or assume who came on as a substitute
+            - DO NOT mention partial substitution information (e.g., "Player X was substituted off" without knowing who replaced them)
+            - Cross-reference with lineup data: "startXI" = starters, "substitutes" = bench players
+            - Only describe substitutions that are strategically important and have complete information
+            - When in doubt about substitution details, exclude rather than include
+
             Instructions:
             - Write a complete article following the template structure exactly
             - PRIORITIZE CURRENT MATCH DATA - focus on what actually happened in this specific game
@@ -113,6 +129,8 @@ class WriterAgent:
             - Include all required sections: Headline, Introduction, Body, Conclusion
             - The main story should be about THIS GAME, not historical background
             - Be extremely careful with player names, team names, and event details - use only what is explicitly stated in the data
+            - CRITICAL: For substitutions, only mention them when you have complete information (both who went off AND who came on)
+            - CRITICAL: If substitution data is incomplete (missing "assist" field), do not mention the substitution at all
             """
         return prompt
     
