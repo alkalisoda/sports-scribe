@@ -134,7 +134,7 @@ class ResearchAgent:
             - NO historical data or assumptions
 
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
-            Example: ["Manchester United defeated Fulham 1-0 at Old Trafford", "The match was the opening fixture of the 2024 Premier League season"]
+            Example: ["Team A defeated Team B 1-0 at Venue X", "The match was the opening/mid-season/closing fixture of the 2024 Premier League season"]
             """
             
             result = await Runner.run(self.agent, prompt)
@@ -186,24 +186,40 @@ class ResearchAgent:
             - NEVER attribute a goal to a player who only assisted
             - NEVER attribute an assist to a player who only scored
 
+            GOAL COUNT VALIDATION RULES:
+            - Use only "Goal" events (type == "Goal") to determine how many goals each player scored.
+            - If a player appears only ONCE as the scorer, do NOT say “scored again”, “second goal”, “brace”, “double”, etc.
+            - These terms may ONLY be used if the same player appears MULTIPLE times as scorer.
+            - If the player scored once, use phrases like “scored a goal” or “found the net”.
+            - NEVER assume a player scored more than once unless it's explicitly recorded.
+
             SUBSTITUTION IDENTITY LOGIC:
             - In substitution events: "in" = player being substituted ON, "out" = player being substituted OFF
             - Only call a player "substituted in" if they appear as the "in" field in a substitution event
             - Only call a player "substituted out" if they appear as the "out" field in the same event
-            - Use clear language: "Player X was substituted in, replacing Player Y"
-            - The structure is now unambiguous: "in" = coming on, "out" = going off
+            - Use clear language: "Player X was substituted in, replacing Player Y" or "Player Y was replaced by Player X"
+            - Never reverse the order of the players in the substitution event.
 
-            CARD VALIDATION RULES:
-            - Only describe cards shown in "Card" events (type="Card")
-            - Card time must come from Card event time, not other events
-            - Yellow cards are disciplinary actions, not performance highlights
+            TEAM VERIFICATION FOR EVENTS:
+            - Each event (goal, card, substitution) contains a "team" field indicating which team made the event
+            - All involved players ("in", "out", "player", "assist") MUST belong to the same team as specified in the "team" field
+            - DO NOT list players under the wrong team
+            - DO NOT describe players from the opposing team as involved in the current team's event
+            - Mention the team name in the storylines
+            Example: If team = "Southampton", then both "player" and "assist" must be Southampton players
+
+            VAR EVENTS:
+            - If an event has `type = Var` and `detail = Goal cancelled`, do NOT assume the `player` listed scored the goal unless there is a separate `goal` event with the same player.
+            - A VAR event involving a player only means the player was affected by or related to the decision — not necessarily the scorer.
+            - Only describe a player as scoring a goal if there is an explicit `event_type = goal` with `scorer = player`.
+            - Use safe phrasing like "A goal was cancelled by VAR involving [player]" if no scorer is confirmed.
 
             GOAL TIMING LOGIC:
             - Do NOT describe a goal as "early lead" unless it happens in first half (≤ 45 minutes)
             - If goal occurs after 75th minute, describe as "late winner" or "decisive goal"
 
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
-            Example: ["Player A scored the winning goal in the nth minute", "Player B was substituted in at n minutes, replacing Player C"]
+            Example: ["Player A scored the winning goal in the nth minute", "Player B was substituted in at n minutes, replacing Player C", "VAR cancelled a potential goal of Team A for offside, involving Player D", "Half time was reached"]
             
             SUBSTITUTION IMPACT RULES:
             - When analyzing substitutions, evaluate their impact based on subsequent events.
@@ -265,10 +281,17 @@ class ResearchAgent:
             - You may still mention high-rated players (rating ≥ 7.0), but it is not mandatory
             - DO NOT describe players who had zero minutes or no stats
             - DO NOT include yellow or red cards in player performance. Only analyze goals, assists, passes, tackles, duels, etc.
+            - In substitution events: "in" = player being substituted ON, "out" = player being substituted OFF
+            - For VAR or canceled goals, do NOT assume the player scored unless explicitly stated; only mention the player's involvement and the event. Example: "A goal initially scored by Player A was canceled by VAR at the nth minute." or "A goal was canceled by VAR involving Player A."
 
-            OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
-            Example: ["Casemiro completed 53 passes with 43% accuracy in 90 minutes", "Player X made 4 tackles and won 7 out of 13 duels"]
-            - If a player came on as a substitute and had a decisive contribution (goal/assist), clearly indicate the impact and timing.
+            GOAL COUNT VALIDATION (MANDATORY):
+            - If a player is described as having scored "a brace", "twice", "two goals", or "a second goal", you MUST verify that the player appears more than once as a scorer in the 'events' section where type == "Goal".
+            - If the player appears only once, this is a factual error.
+            - Correct any instance of "brace" or "second goal" to reflect the accurate number of goals scored.
+            - DO NOT rely on `player_performance` or inferred phrasing. Use `goal` events only.
+
+            OUTPUT FORMAT: Return ONLY a JSON array of simple strings, each describing the player's own actions and involvement, with no ambiguity.
+            Example: ["Player A was substituted in for Player B at the nth minute.", "A potential goal was canceled by VAR at the nth minute, involving Player C."]
             """
             
             result = await Runner.run(self.agent, prompt)
@@ -318,6 +341,13 @@ class ResearchAgent:
             - NEVER attribute a goal to a player who only assisted
             - NEVER attribute an assist to a player who only scored
 
+            GOAL COUNT VALIDATION RULES:
+            - Use only "Goal" events (type == "Goal") to determine how many goals each player scored.
+            - If a player appears only ONCE as the scorer, do NOT say “scored again”, “second goal”, “brace”, “double”, etc.
+            - These terms may ONLY be used if the same player appears MULTIPLE times as scorer.
+            - If the player scored once, use phrases like “scored a goal” or “found the net”.
+            - NEVER assume a player scored more than once unless it's explicitly recorded.
+
             SUBSTITUTION IDENTITY RULE:
             - In substitution events: "in" = player being substituted ON, "out" = player being substituted OFF
             - Only call a player "substituted in" if they appear as the "in" field in a substitution event
@@ -327,8 +357,6 @@ class ResearchAgent:
 
             ASSIST VALIDATION RULE:
             - Only mention an assist if the player is listed as "assist" in a Goal event
-            - DO NOT confuse substitution "assist" field with goal "assist" field
-            - Substitution "assist" = who came ON, Goal "assist" = who provided the assist
 
             CARD VALIDATION RULES:
             - Only describe cards shown in "Card" events (type="Card")
@@ -347,7 +375,7 @@ class ResearchAgent:
             
             SUBSTITUTION IMPACT RULES:
             - When analyzing substitutions, evaluate their impact based on subsequent events.
-            - If a substituted-in player scored a goal, made an assist, or received a card, describe the substitution as impactful.
+            - If a substituted-in player scored a goal, made an replacement, or received a card, describe the substitution as impactful.
             - Highlight linkages: e.g., "Substitute J. Zirkzee scored the winner after coming on in the 61st minute after replacing M. Mount"
             - If a substitution was followed by no key contribution or came in very late, it should be noted as such.
             - Do not describe substitutions as meaningful unless supported by data (e.g., goal, assist, card).
@@ -448,7 +476,13 @@ class ResearchAgent:
             - Only use team-wide statistics from the "statistics" section
             - Compare statistics between teams
             - Focus on key metrics like possession, shots, corners, fouls
-            - Use exact numbers from the data
+            
+            - Include detailed shooting breakdown:
+                - "Shots insidebox"
+                - "Shots outsidebox"
+                - "Blocked shots"
+            - Always quote the exact number from the statistics data
+            - Never assume or simplify; do not equate “shots on target” with “inside the box”
 
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
             Example: ["Manchester United dominated possession with 55% compared to Fulham's 45%", "Both teams received 3 yellow cards each"]

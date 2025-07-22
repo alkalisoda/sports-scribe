@@ -54,6 +54,8 @@ class Editor:
         6. If no errors are found, return the original text unchanged
         
         FACT CHECKING CRITERIA:
+        - If you see "second goal" or "brace" in the article, make sure it is real in the data. If the player only assisted, do not use "second goal" or "brace".
+        - Note that "a goal and an assist" is not two goals, do not use "second goal" or "brace" unless it is real in the data
         - Player names and spellings
         - Team names and spellings  
         - Match scores and results
@@ -70,6 +72,15 @@ class Editor:
         - In events, "type": "subst" means a substitution occurred
         - Check the "player" field to see WHO was substituted OFF
         - Check the "assist" field to see WHO came ON as replacement
+        - The goal can not be assigned to the assist player:
+            - EXAMPLE: If Player A scores one goal assisted by Player B, and Player B scores one goal assisted by Player A, DO NOT write that either player "scored a double" or "netted twice".
+                - For example, in the match where Arsenal beat Wolves 2-0, Saka scored once (assisted by Havertz) and Havertz scored once (assisted by Saka). Neither scored twice — this must NOT be described as a "brace" or "double".
+        - When counting goals per player, treat only explicit scoring events in the CURRENT MATCH DATA as valid.
+        - A player who scored one goal and provided one assist MUST NOT be described as scoring twice.
+        - For clarity: DO NOT use phrases like "brace", "double", "netted twice", "second tally", or similar variations unless the player is explicitly recorded as scoring two distinct goals.
+        - Goal count per player must match the number of goal events where the player is listed as "scorer".
+        - Assist does NOT count as a goal. It could mean a goal assist or a substitution. Make sure to check the "type" field to determine if it is a substitution or a goal assist. A substitution is not a goal.
+
         - CRITICAL: ONLY mention substitutions when BOTH "player" AND "assist" fields are present
         - If "assist" field is null or missing, DO NOT mention the substitution at all
         - Example: If player A is in "startXI" and player B is in "substitutes", and there's a "subst" event with player A and assist B, then B replaced A

@@ -1,0 +1,37 @@
+[33m1b9fd35[m[33m ([m[1;36mHEAD -> [m[1;32magent-pipeline[m[33m, [m[1;31morigin/feature/agent-pipleline[m[33m)[m HEAD@{0}: reset: moving to origin/feature/agent-pipleline
+[33m106e94a[m[33m ([m[1;31morigin/agent-pipeline[m[33m, [m[1;32mbackup-july22[m[33m)[m HEAD@{1}: reset: moving to HEAD
+[33m106e94a[m[33m ([m[1;31morigin/agent-pipeline[m[33m, [m[1;32mbackup-july22[m[33m)[m HEAD@{2}: checkout: moving from backup-july22 to agent-pipeline
+[33m106e94a[m[33m ([m[1;31morigin/agent-pipeline[m[33m, [m[1;32mbackup-july22[m[33m)[m HEAD@{3}: checkout: moving from agent-pipeline to backup-july22
+[33m106e94a[m[33m ([m[1;31morigin/agent-pipeline[m[33m, [m[1;32mbackup-july22[m[33m)[m HEAD@{4}: commit: game data, pipeline and researcher modified
+[33m20128fd[m HEAD@{5}: commit: data collector modified
+[33m73bb386[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{6}: checkout: moving from main to agent-pipeline
+[33m73bb386[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{7}: commit: researcher modified
+[33me310bce[m HEAD@{8}: commit: editor implemented, data collector and researcher modified
+[33mef49482[m HEAD@{9}: commit: pipeline with researcher agent updated
+[33mdaba41e[m HEAD@{10}: commit: pipeline with writer updated
+[33md43d580[m HEAD@{11}: commit: pipeline with writer updated
+[33mcc443fe[m HEAD@{12}: reset: moving to cc443fe
+[33m410a561[m HEAD@{13}: pull origin main: Fast-forward
+[33mcc443fe[m HEAD@{14}: commit: pipeline with collector researcher implemented
+[33mf515bcf[m HEAD@{15}: commit (merge): pipeline with collector researcher implemented
+[33m25e1861[m HEAD@{16}: commit: pipeline for agent
+[33m1b9fd35[m[33m ([m[1;36mHEAD -> [m[1;32magent-pipeline[m[33m, [m[1;31morigin/feature/agent-pipleline[m[33m)[m HEAD@{17}: merge origin/feature/agent-pipleline: Fast-forward
+[33m807bf41[m[33m ([m[1;31mupstream/main[m[33m)[m HEAD@{18}: checkout: moving from feature/agent-pipleline to main
+[33ma572457[m[33m ([m[1;32mfeature/agent-pipleline[m[33m)[m HEAD@{19}: commit: pipeline for agent
+[33m1b9fd35[m[33m ([m[1;36mHEAD -> [m[1;32magent-pipeline[m[33m, [m[1;31morigin/feature/agent-pipleline[m[33m)[m HEAD@{20}: commit: researcher agent implementation placeholder
+[33m0cf4afd[m HEAD@{21}: commit: researcher agent implementation placeholder
+[33mc3a0956[m HEAD@{22}: reset: moving to origin/feature/agent-pipleline
+[33mc3a0956[m HEAD@{23}: commit: base agent example
+[33mf9c5073[m HEAD@{24}: commit: base agent example
+[33mfaffe8a[m HEAD@{25}: commit: base agent example
+[33m9eec046[m HEAD@{26}: commit: base agent example
+[33mc03c50c[m HEAD@{27}: commit: base agent example
+[33mb31d357[m HEAD@{28}: commit: feat: improve pipeline logging and raw data output, simplify error handling
+[33ma26f617[m HEAD@{29}: commit: feat: improve pipeline logging and raw data output, simplify error handling
+[33m63ef980[m HEAD@{30}: commit: A basic pipeline implementation for the agents
+[33m807bf41[m[33m ([m[1;31mupstream/main[m[33m)[m HEAD@{31}: checkout: moving from main to feature/agent-pipleline
+[33m807bf41[m[33m ([m[1;31mupstream/main[m[33m)[m HEAD@{32}: merge upstream/main: Fast-forward
+[33madf7477[m HEAD@{33}: checkout: moving from main to main
+[33madf7477[m HEAD@{34}: merge upstream/main: Fast-forward
+[33mabb582e[m HEAD@{35}: checkout: moving from main to main
+[33mabb582e[m HEAD@{36}: clone: from https://github.com/alkalisoda/sports-scribe
