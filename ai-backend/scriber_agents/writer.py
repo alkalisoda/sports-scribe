@@ -111,7 +111,10 @@ class WriterAgent:
                 - For example, in the match where Arsenal beat Wolves 2-0, Saka scored once (assisted by Havertz) and Havertz scored once (assisted by Saka). Neither scored twice — this must NOT be described as a "brace" or "double".
             - When counting goals per player, treat only explicit scoring events in the CURRENT MATCH DATA as valid.
             - A player who scored one goal and provided one assist MUST NOT be described as scoring twice.
-            - For clarity: DO NOT use phrases like "brace", "double", "netted twice", "second tally", or similar variations unless the player is explicitly recorded as scoring two distinct goals.            
+            - For clarity: DO NOT use phrases like "brace", "double", "netted twice", "second tally", or similar variations unless the player is explicitly recorded as scoring two distinct goals.
+            - KEY FACTUAL RULE:
+                - Goal count per player must match the number of goal events where the player is listed as "scorer".
+                - Assist does NOT count as a goal.
                 
             CRITICAL SUBSTITUTION RULES:
             - ONLY mention substitutions when you have COMPLETE information about who went OFF and who came ON

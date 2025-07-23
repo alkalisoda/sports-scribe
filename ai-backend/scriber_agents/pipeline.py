@@ -241,13 +241,17 @@ class AgentPipeline:
             logger.info(f"[PIPELINE] Step 4: Editing and fact-checking article")
             original_article = article_content
             
-            # Step 4.1: Fact-checking
-            logger.info(f"[PIPELINE] Step 4.1: Fact-checking article")
-            fact_checked_article = await self.editor.edit_with_facts(article_content, compact_game_data)
+            # Step 4.1: Fact-checking with research insights
+            logger.info(f"[PIPELINE] Step 4.1: Fact-checking article with research insights")
+            fact_checked_article = await self.editor.edit_with_facts(
+                article_content, 
+                compact_game_data, 
+                comprehensive_research_data
+            )
             
             # Step 4.2: Terminology checking
             logger.info(f"[PIPELINE] Step 4.2: Terminology checking article")
-            edited_article = await self.editor.edit_with_terms(fact_checked_article)
+            edited_article = await self.editor.edit_with_terms(fact_checked_article, compact_game_data)
             
             # Validate editing results
             validation_result = self.editor.validate_editing_result(original_article, edited_article)

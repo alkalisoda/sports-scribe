@@ -354,6 +354,8 @@ class ResearchAgent:
             - Only call a player "substituted out" if they appear as the "out" field in the same event
             - Use clear language: "Player X was substituted in, replacing Player Y"
             - The structure is now unambiguous: "in" = coming on, "out" = going off
+            - Don't use the same player for both "in" and "out" in the same substitution event
+            - Don't use "assist" for substitution events, use "replace" instead
 
             ASSIST VALIDATION RULE:
             - Only mention an assist if the player is listed as "assist" in a Goal event
@@ -379,6 +381,8 @@ class ResearchAgent:
             - Highlight linkages: e.g., "Substitute J. Zirkzee scored the winner after coming on in the 61st minute after replacing M. Mount"
             - If a substitution was followed by no key contribution or came in very late, it should be noted as such.
             - Do not describe substitutions as meaningful unless supported by data (e.g., goal, assist, card).
+            - DO NOT infer substitution time from goal/card event.
+            - Example (valid): "Player A, who came on in the 46th minute, was booked in the 90th minute"
             """
             
             result = await Runner.run(self.agent, prompt)

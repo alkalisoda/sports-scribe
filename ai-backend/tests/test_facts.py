@@ -35,7 +35,7 @@ async def test_game_recap(game_id: str) -> str:
     return result
 
 if __name__ == "__main__":
-    for game_id in ["1208021", "1208023"]:
+    for game_id in ["1208022", "1208023", "1208025"]:
         result = asyncio.run(test_game_recap(game_id))
         print(result)
     # game_id = "1208023"
