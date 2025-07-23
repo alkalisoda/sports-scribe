@@ -28,7 +28,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-GAME_ID = "1208025"
+GAME_ID = "1208023"
 
 async def generate_game_recap_example():
     """Example of generating a game recap using the pipeline."""
