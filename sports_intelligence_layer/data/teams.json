@@ -1,0 +1,17 @@
+{
+  "arsenal": ["arsenal", "gunners", "arsenal fc"],
+  "liverpool": ["liverpool", "reds", "liverpool fc"],
+  "real madrid": ["real madrid", "madrid", "el clasico"],
+  "barcelona": ["barcelona", "barca", "el clasico"],
+  "manchester city": ["manchester city", "man city", "city"],
+  "manchester united": ["manchester united", "man utd", "united"],
+  "chelsea": ["chelsea"],
+  "bayern munich": ["bayern munich", "bayern"],
+  "juventus": ["juventus", "juve"],
+  "psg": ["psg", "paris saint-germain", "paris"],
+  "tottenham": ["tottenham", "spurs", "tottenham hotspur"],
+  "everton": ["everton", "toffees"],
+  "ac milan": ["ac milan", "milan"],
+  "inter milan": ["inter milan", "inter"]
+}
+

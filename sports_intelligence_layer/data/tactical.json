@@ -1,0 +1,6 @@
+{
+  "formations": ["4-3-3", "4-4-2", "3-5-2", "4-2-3-1", "3-4-3", "4-1-4-1", "5-3-2"],
+  "styles": ["pressing", "counterattack", "possession", "defensive", "attacking", "high line", "low block", "gegenpressing"],
+  "situations": ["early goal", "late goal", "red card", "yellow card", "penalty", "var", "injury", "substitution"],
+  "timing": ["first half", "second half", "extra time", "injury time", "early", "late", "stoppage time"]
+}

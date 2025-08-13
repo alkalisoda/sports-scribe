@@ -1,0 +1,15 @@
+{
+  "game_id": "1208022",
+  "collection_timestamp": "20250812_173009",
+  "data_keys": [
+    "get",
+    "parameters",
+    "errors",
+    "results",
+    "paging",
+    "response"
+  ],
+  "response_count": 1,
+  "errors": [],
+  "results": 1
+}
