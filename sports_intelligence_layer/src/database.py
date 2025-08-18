@@ -12,7 +12,7 @@ from datetime import datetime
 from functools import lru_cache
 from supabase import create_client, Client
 
-from ..config.soccer_entities import (
+from config.soccer_entities import (
     Player, Team, Competition, PlayerStatistics, TeamStatistics,
     Position, CompetitionType
 )
@@ -96,7 +96,8 @@ class SoccerDatabase:
             return [self._convert_to_player(r) for r in rows]
         except Exception as e:
             logger.exception("Error searching players: %s", query)
-            raise DatabaseError(f"Failed to search players: {e}")
+            logger.warning(f"Returning empty list for player search: {query}")
+            return []
 
     def search_teams(self, query: str, limit: int = 10) -> List[Team]:
         """Search teams by name (sync)."""
@@ -106,7 +107,8 @@ class SoccerDatabase:
             return [self._convert_to_team(r) for r in rows]
         except Exception as e:
             logger.exception("Error searching teams: %s", query)
-            raise DatabaseError(f"Failed to search teams: {e}")
+            logger.warning(f"Returning empty list for team search: {query}")
+            return []
 
     # ---------- Aggregated stats (player_match_stats) ----------
 
@@ -163,6 +165,21 @@ class SoccerDatabase:
 
             resp = qb.execute()
             rows = resp.data or []
+            
+            # Check if any data was found
+            if not rows:
+                return {
+                    "status": "no_data", 
+                    "reason": "no_matches_found",
+                    "matches": 0,
+                    "filters": {
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "venue": venue,
+                        "last_n": last_n,
+                    },
+                }
+            
             value = sum((r.get(stat) or 0) for r in rows)
 
             return {
@@ -225,14 +242,12 @@ class SoccerDatabase:
             last_n = None
             start_date, end_date = None, None
             if str(parsed.time_context.value) == "last_n_games":
-                # parser里通常会在 filters 里塞数字（若你没加，可自己解析再传进来）
                 n = parsed.filters.get("last_n") if isinstance(parsed.filters, dict) else None
                 if isinstance(n, int) and n > 0:
                     last_n = n
             elif str(parsed.time_context.value) == "last_season":
                 start_date, end_date = self.season_range("last_season")
             else:
-                # 默认本赛季
                 start_date, end_date = self.season_range(default_season_label)
 
             # 5) venue
