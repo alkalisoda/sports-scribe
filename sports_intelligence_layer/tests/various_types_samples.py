@@ -1,4 +1,3 @@
-
 """
 SIL: Test Examples
 
@@ -204,6 +203,3 @@ SIL: Test Examples
 
 
 """
-
-
-

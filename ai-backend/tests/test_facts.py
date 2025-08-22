@@ -2,14 +2,16 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import datetime
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from scriber_agents.pipeline import AgentPipeline
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from dotenv import load_dotenv
+
+from scriber_agents.pipeline import AgentPipeline
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
 
 async def test_game_recap(game_id: str) -> str:
     pipeline = AgentPipeline()
@@ -27,12 +29,13 @@ async def test_game_recap(game_id: str) -> str:
     output_path = os.path.join(result_dir, f"game_recap_{game_id}.txt")
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(f"📝 Raw game data: {raw_game_data}\n")
-        f.write('\n' + "=" * 50 + "\n")
-        f.write(f"Generated article:\n")
+        f.write("\n" + "=" * 50 + "\n")
+        f.write("Generated article:\n")
         f.write("=" * 50 + "\n")
         f.write(content)
 
     return result
+
 
 if __name__ == "__main__":
     for game_id in ["1208022", "1208023", "1208025"]:

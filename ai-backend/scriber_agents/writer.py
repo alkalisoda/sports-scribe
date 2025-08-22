@@ -1,65 +1,71 @@
 import logging
-from typing import Dict, Any
-from dotenv import load_dotenv
+from typing import Any
 
 from agents import Agent, Runner
+from dotenv import load_dotenv
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
+
 class WriterAgent:
-    """
-    AI agent that generates complete football articles using collected data and research insights.
-    """
-    def __init__(self, config: Dict[str, Any] = None):
+    """AI agent that generates complete football articles using collected data and research insights."""
+
+    def __init__(self, config: dict[str, Any] | None = None):
         """Initialize the Writer Agent with configuration."""
         self.config = config or {}
-        
+
         # Initialize the writer agent
         self.agent = Agent(
             instructions="""You are a professional sports journalist specializing in writing engaging football game recaps.
             Your task is to create compelling, well-structured articles that capture the excitement and significance of football matches.
-            
+
             Guidelines:
             - Write in a professional, engaging tone
             - Use only the provided data - do not invent statistics or quotes
             - Follow the exact structure provided in the template
             - Maintain consistency in style and tone
             - Focus on the most important storylines and moments
-            - Create articles that are 400-600 words in length            
-            
+            - Create articles that are 400-600 words in length
+
             Always return complete, well-formatted articles ready for publication.""",
             name="WriterAgent",
             output_type=str,
             model=self.config.get("model", "gpt-4o"),
         )
-        
+
         logger.info("Writer Agent initialized successfully")
 
-    async def generate_game_recap(self, game_info: Dict[str, Any], research: Dict[str, Any]) -> str:
+    async def generate_game_recap(
+        self, game_info: dict[str, Any], research: dict[str, Any]
+    ) -> str:
         """Generate a complete football game recap article."""
         logger.info("Generating game recap article")
-        
+
         try:
             prompt = self._build_prompt(game_info, research)
             result = await Runner.run(self.agent, prompt)
             article = result.final_output_as(str).strip()
             self._validate_article(article)
             return article
-            
+
         except Exception as e:
             logger.error(f"Error generating game recap: {e}")
             raise
 
     def _build_prompt(self, game_info, research) -> str:
-        logger.info(f"Building prompt for game recap")
+        logger.info("Building prompt for game recap")
         logger.info(f"Game Info: {game_info}")
         logger.info(f"Research Insights: {research}")
 
         # Extract different types of research data
         storylines = research.get("game_analysis", [])  # Current match events only
-        historical_context = research.get("historical_context", [])  # Background information only
-        player_performance = research.get("player_performance", [])  # Current match player events only
+        historical_context = research.get(
+            "historical_context", []
+        )  # Background information only
+        player_performance = research.get(
+            "player_performance", []
+        )  # Current match player events only
 
         prompt = f"""
             Write a professional football game recap article (400-600 words) with the following structure:
@@ -115,7 +121,7 @@ class WriterAgent:
             - KEY FACTUAL RULE:
                 - Goal count per player must match the number of goal events where the player is listed as "scorer".
                 - Assist does NOT count as a goal.
-                
+
             CRITICAL SUBSTITUTION RULES:
             - ONLY mention substitutions when you have COMPLETE information about who went OFF and who came ON
             - In substitution events: "player" field = who went OFF, "assist" field = who came ON
@@ -143,28 +149,28 @@ class WriterAgent:
             - CRITICAL: If substitution data is incomplete (missing "assist" field), do not mention the substitution at all
             """
         return prompt
-    
+
     def get_game_recap_template(self):
         return """
         Template: Match Report Structure (400-600 words)
-        
+
         Headline: [Team A] [Score] [Team B]: [Key moment/player] [action verb] [competition context]
         - Concise, engaging headline that captures the main story
         - Include teams, background, score, and key narrative element
-        
+
         Introduction: Context, teams, and stakes
         - Establish result significance with score and competition context
         - Example: "[Winning team] secured a [score] victory over [losing team] in [competition], with [key factor] proving decisive."
         - Introduce background of the game and teams
         - Set up the stakes and importance of the match
-        
+
         Body: Game storyline, key moments, player performances, relevant statistics, quotes
         - Describe key moments in temporal sequence, emphasizing turning points and goals
         - Focus on game-changing incidents rather than comprehensive play-by-play
         - Include individual standout performances and tactical decisions
         - Integrate relevant statistics (possession, shots, etc.) and player quotes
         - Maintain narrative flow while covering all essential game elements
-        
+
         Conclusion: Summary and implications
         - Summarize the key outcome and its significance
         - Address competitive implications (league standings, qualification scenarios, season trajectory)
@@ -175,8 +181,9 @@ class WriterAgent:
         word_count = len(article.split())
         if word_count < 400 or word_count > 600:
             logger.warning(f"Article length out of bounds: {word_count} words.")
-        if not ("Headline" in article or article.split('\n')[0].strip()):
+        if not ("Headline" in article or article.split("\n")[0].strip()):
             logger.warning("Article missing headline.")
-        if not any(section in article for section in ["Introduction", "Body", "Conclusion"]):
+        if not any(
+            section in article for section in ["Introduction", "Body", "Conclusion"]
+        ):
             logger.warning("Article missing required sections.")
-        

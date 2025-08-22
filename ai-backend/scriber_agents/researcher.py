@@ -5,12 +5,12 @@ It researches historical data, team/player statistics, and relevant context
 to enrich the content generation process.
 """
 
-import logging
-from typing import Any, List, Dict
-from dotenv import load_dotenv
 import json
+import logging
+from typing import Any
 
 from agents import Agent, Runner
+from dotenv import load_dotenv
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 class ResearchAgent:
     """Agent responsible for researching contextual information and analysis."""
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         """Initialize the Research Agent with configuration."""
         self.config = config or {}
-        
+
         # Initialize the research agent without web search capability
         self.agent = Agent(
             instructions="""You are a sports research agent. Provide clear, factual analysis based ONLY on provided data.
@@ -55,21 +55,22 @@ class ResearchAgent:
             output_type=str,
             model=self.config.get("model", "gpt-4.1-nano"),
         )
-        
-        logger.info("Research Agent initialized successfully")
 
+        logger.info("Research Agent initialized successfully")
 
     async def get_storyline_from_game_data(self, game_data: dict) -> list[str]:
         """Get comprehensive storylines from game data by analyzing different components separately.
-        
+
         Args:
             game_data: Compact game data from pipeline (contains match_info, events, players, statistics, lineups)
-            
+
         Returns:
             list[str]: Comprehensive list of storylines including analysis
         """
-        logger.info("Generating comprehensive storylines from compact game data by analyzing components separately")
-        
+        logger.info(
+            "Generating comprehensive storylines from compact game data by analyzing components separately"
+        )
+
         try:
             # Extract different components from compact data
             match_info = game_data.get("match_info", {})
@@ -77,45 +78,52 @@ class ResearchAgent:
             players = game_data.get("players", [])
             statistics = game_data.get("statistics", [])
             lineups = game_data.get("lineups", [])
-            
+
             all_storylines = []
-            
+
             # 1. Analyze match information (basic game context)
             if match_info:
                 logger.info("Analyzing match information...")
                 match_storylines = await self._analyze_match_info(match_info)
                 all_storylines.extend(match_storylines)
-            
+
             # 2. Analyze key events (goals, cards, substitutions)
             if events:
                 logger.info("Analyzing key events...")
                 event_storylines = await self._analyze_events(events)
                 all_storylines.extend(event_storylines)
-            
+
             # 3. Analyze player performances (focus on high-rated players)
             if players:
                 logger.info("Analyzing player performances...")
                 player_storylines = await self._analyze_player_performances(players)
                 all_storylines.extend(player_storylines)
-            
+
             # 4. Analyze team statistics
             if statistics:
                 logger.info("Analyzing team statistics...")
                 stats_storylines = await self._analyze_team_statistics(statistics)
                 all_storylines.extend(stats_storylines)
-            
+
             # 5. Analyze lineups and formations
             if lineups:
                 logger.info("Analyzing lineups and formations...")
                 lineup_storylines = await self._analyze_lineups(lineups)
                 all_storylines.extend(lineup_storylines)
-            
-            logger.info(f"Generated {len(all_storylines)} storylines from separate component analysis")
+
+            logger.info(
+                f"Generated {len(all_storylines)} storylines from separate component analysis"
+            )
             return all_storylines
-            
+
         except Exception as e:
-            logger.error(f"Error generating comprehensive storylines from game data: {e}")
-            return ["Comprehensive match analysis based on available game data", "Key moments and turning points from the match"]
+            logger.error(
+                f"Error generating comprehensive storylines from game data: {e}"
+            )
+            return [
+                "Comprehensive match analysis based on available game data",
+                "Key moments and turning points from the match",
+            ]
 
     async def _analyze_match_info(self, match_info: dict) -> list[str]:
         """Analyze basic match information."""
@@ -136,7 +144,7 @@ class ResearchAgent:
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
             Example: ["Team A defeated Team B 1-0 at Venue X", "The match was the opening/mid-season/closing fixture of the 2024 Premier League season"]
             """
-            
+
             result = await Runner.run(self.agent, prompt)
             try:
                 storylines = json.loads(result.final_output)
@@ -148,16 +156,20 @@ class ResearchAgent:
                             processed_storylines.append(s.strip())
                         elif isinstance(s, dict):
                             # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
+                            if "storyline" in s:
+                                processed_storylines.append(str(s["storyline"]).strip())
+                            elif "details" in s:
+                                processed_storylines.append(str(s["details"]).strip())
                             else:
                                 processed_storylines.append(str(s).strip())
                     return processed_storylines
             except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
-            
+                return [
+                    line.strip()
+                    for line in result.final_output.splitlines()
+                    if line.strip()
+                ]
+
         except Exception as e:
             logger.error(f"Error analyzing match info: {e}")
             return []
@@ -175,7 +187,7 @@ class ResearchAgent:
             EVENT-PLAYER CORRESPONDENCE RULES:
             - Each event must contain its own player and time data - DO NOT mix between events
             - Goal event player = only the player listed in that Goal event
-            - Card event player = only the player listed in that Card event  
+            - Card event player = only the player listed in that Card event
             - Substitution event players = only the players listed in that Substitution event
             - Goal time cannot be used as substitution time
             - Card time cannot be used as goal time
@@ -220,7 +232,7 @@ class ResearchAgent:
 
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
             Example: ["Player A scored the winning goal in the nth minute", "Player B was substituted in at n minutes, replacing Player C", "VAR cancelled a potential goal of Team A for offside, involving Player D", "Half time was reached"]
-            
+
             SUBSTITUTION IMPACT RULES:
             - When analyzing substitutions, evaluate their impact based on subsequent events.
             - If a substituted-in player scored a goal, made an assist, or received a card, describe the substitution as impactful.
@@ -228,7 +240,7 @@ class ResearchAgent:
             - If a substitution was followed by no key contribution or came in very late, it should be noted as such.
             - Do not describe substitutions as meaningful unless supported by data (e.g., goal, assist, card).
             """
-            
+
             result = await Runner.run(self.agent, prompt)
             try:
                 storylines = json.loads(result.final_output)
@@ -240,16 +252,20 @@ class ResearchAgent:
                             processed_storylines.append(s.strip())
                         elif isinstance(s, dict):
                             # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
+                            if "storyline" in s:
+                                processed_storylines.append(str(s["storyline"]).strip())
+                            elif "details" in s:
+                                processed_storylines.append(str(s["details"]).strip())
                             else:
                                 processed_storylines.append(str(s).strip())
                     return processed_storylines
             except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
-            
+                return [
+                    line.strip()
+                    for line in result.final_output.splitlines()
+                    if line.strip()
+                ]
+
         except Exception as e:
             logger.error(f"Error analyzing events: {e}")
             return []
@@ -293,7 +309,7 @@ class ResearchAgent:
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings, each describing the player's own actions and involvement, with no ambiguity.
             Example: ["Player A was substituted in for Player B at the nth minute.", "A potential goal was canceled by VAR at the nth minute, involving Player C."]
             """
-            
+
             result = await Runner.run(self.agent, prompt)
             try:
                 storylines = json.loads(result.final_output)
@@ -305,16 +321,20 @@ class ResearchAgent:
                             processed_storylines.append(s.strip())
                         elif isinstance(s, dict):
                             # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
+                            if "storyline" in s:
+                                processed_storylines.append(str(s["storyline"]).strip())
+                            elif "details" in s:
+                                processed_storylines.append(str(s["details"]).strip())
                             else:
                                 processed_storylines.append(str(s).strip())
                     return processed_storylines
             except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
-            
+                return [
+                    line.strip()
+                    for line in result.final_output.splitlines()
+                    if line.strip()
+                ]
+
         except Exception as e:
             logger.error(f"Error analyzing player performances: {e}")
             return []
@@ -332,7 +352,7 @@ class ResearchAgent:
             EVENT-PLAYER CORRESPONDENCE RULES:
             - Each event must contain its own player and time data - DO NOT mix between events
             - Goal event player = only the player listed in that Goal event
-            - Card event player = only the player listed in that Card event  
+            - Card event player = only the player listed in that Card event
             - Substitution event players = only the players listed in that Substitution event
 
             GOAL & ASSIST VALIDATION RULES:
@@ -374,7 +394,7 @@ class ResearchAgent:
 
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
             Example: ["J. Zirkzee scored the winning goal in the 87th minute", "A. Diallo was substituted in at 61 minutes, replacing A. Garnacho"]
-            
+
             SUBSTITUTION IMPACT RULES:
             - When analyzing substitutions, evaluate their impact based on subsequent events.
             - If a substituted-in player scored a goal, made an replacement, or received a card, describe the substitution as impactful.
@@ -384,7 +404,7 @@ class ResearchAgent:
             - DO NOT infer substitution time from goal/card event.
             - Example (valid): "Player A, who came on in the 46th minute, was booked in the 90th minute"
             """
-            
+
             result = await Runner.run(self.agent, prompt)
             try:
                 storylines = json.loads(result.final_output)
@@ -396,16 +416,20 @@ class ResearchAgent:
                             processed_storylines.append(s.strip())
                         elif isinstance(s, dict):
                             # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
+                            if "storyline" in s:
+                                processed_storylines.append(str(s["storyline"]).strip())
+                            elif "details" in s:
+                                processed_storylines.append(str(s["details"]).strip())
                             else:
                                 processed_storylines.append(str(s).strip())
                     return processed_storylines
             except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
-            
+                return [
+                    line.strip()
+                    for line in result.final_output.splitlines()
+                    if line.strip()
+                ]
+
         except Exception as e:
             logger.error(f"Error analyzing player events: {e}")
             return []
@@ -440,7 +464,7 @@ class ResearchAgent:
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
             Example: ["Casemiro completed 53 passes with 43% accuracy in 90 minutes", "Player X made 4 tackles and won 7 out of 13 duels"]
             """
-            
+
             result = await Runner.run(self.agent, prompt)
             try:
                 storylines = json.loads(result.final_output)
@@ -452,16 +476,20 @@ class ResearchAgent:
                             processed_storylines.append(s.strip())
                         elif isinstance(s, dict):
                             # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
+                            if "storyline" in s:
+                                processed_storylines.append(str(s["storyline"]).strip())
+                            elif "details" in s:
+                                processed_storylines.append(str(s["details"]).strip())
                             else:
                                 processed_storylines.append(str(s).strip())
                     return processed_storylines
             except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
-            
+                return [
+                    line.strip()
+                    for line in result.final_output.splitlines()
+                    if line.strip()
+                ]
+
         except Exception as e:
             logger.error(f"Error analyzing player statistics: {e}")
             return []
@@ -480,7 +508,7 @@ class ResearchAgent:
             - Only use team-wide statistics from the "statistics" section
             - Compare statistics between teams
             - Focus on key metrics like possession, shots, corners, fouls
-            
+
             - Include detailed shooting breakdown:
                 - "Shots insidebox"
                 - "Shots outsidebox"
@@ -491,7 +519,7 @@ class ResearchAgent:
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
             Example: ["Manchester United dominated possession with 55% compared to Fulham's 45%", "Both teams received 3 yellow cards each"]
             """
-            
+
             result = await Runner.run(self.agent, prompt)
             try:
                 storylines = json.loads(result.final_output)
@@ -503,16 +531,20 @@ class ResearchAgent:
                             processed_storylines.append(s.strip())
                         elif isinstance(s, dict):
                             # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
+                            if "storyline" in s:
+                                processed_storylines.append(str(s["storyline"]).strip())
+                            elif "details" in s:
+                                processed_storylines.append(str(s["details"]).strip())
                             else:
                                 processed_storylines.append(str(s).strip())
                     return processed_storylines
             except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
-            
+                return [
+                    line.strip()
+                    for line in result.final_output.splitlines()
+                    if line.strip()
+                ]
+
         except Exception as e:
             logger.error(f"Error analyzing team statistics: {e}")
             return []
@@ -536,7 +568,7 @@ class ResearchAgent:
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
             Example: ["Both teams employed a 4-2-3-1 formation", "Manchester United's starting XI featured key players like Bruno Fernandes"]
             """
-            
+
             result = await Runner.run(self.agent, prompt)
             try:
                 storylines = json.loads(result.final_output)
@@ -548,31 +580,37 @@ class ResearchAgent:
                             processed_storylines.append(s.strip())
                         elif isinstance(s, dict):
                             # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
+                            if "storyline" in s:
+                                processed_storylines.append(str(s["storyline"]).strip())
+                            elif "details" in s:
+                                processed_storylines.append(str(s["details"]).strip())
                             else:
                                 processed_storylines.append(str(s).strip())
                     return processed_storylines
             except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
-            
+                return [
+                    line.strip()
+                    for line in result.final_output.splitlines()
+                    if line.strip()
+                ]
+
         except Exception as e:
             logger.error(f"Error analyzing lineups: {e}")
             return []
-        
+
     async def get_history_from_team_data(self, team_data: dict) -> list[str]:
         """Get historical context from team data ONLY (background information).
-        
+
         Args:
             team_data: Team information including enhanced data (background/historical only)
-            
+
         Returns:
             list[str]: Historical context and background information
         """
-        logger.info("Analyzing historical context from team data (background information only)")
-        
+        logger.info(
+            "Analyzing historical context from team data (background information only)"
+        )
+
         try:
             team_data_str = str(team_data)
             prompt = f"""
@@ -588,53 +626,69 @@ class ResearchAgent:
 
             OUTPUT: JSON array of 3-5 background statements.
             """
-            
+
             result = await Runner.run(self.agent, prompt)
             try:
                 storylines = json.loads(result.final_output)
                 if isinstance(storylines, list):
                     return [str(s).strip() for s in storylines if s]
             except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
-            
+                return [
+                    line.strip()
+                    for line in result.final_output.splitlines()
+                    if line.strip()
+                ]
+
         except Exception as e:
             logger.error(f"Error analyzing historical context: {e}")
-            return ["Historical context based on available team data", "Team performance analysis from provided data"]
+            return [
+                "Historical context based on available team data",
+                "Team performance analysis from provided data",
+            ]
 
-    async def get_performance_from_player_game_data(self, player_data: dict, game_data: dict) -> list[str]:
+    async def get_performance_from_player_game_data(
+        self, player_data: dict, game_data: dict
+    ) -> list[str]:
         """Analyze individual player performance from game data by analyzing components separately.
-        
+
         Args:
             player_data: Player information including enhanced data
             game_data: Compact game data for context (current match events only)
-            
+
         Returns:
             list[str]: Player performance analysis based ONLY on current match events
         """
-        logger.info("Analyzing individual player performance from compact game data by analyzing components separately")
-        
+        logger.info(
+            "Analyzing individual player performance from compact game data by analyzing components separately"
+        )
+
         try:
             all_storylines = []
-            
+
             # Extract different components from compact data
             events = game_data.get("events", [])
             players = game_data.get("players", [])
-            
+
             # 1. Analyze player events (goals, assists, cards, substitutions)
             if events:
                 logger.info("Analyzing player events...")
                 event_storylines = await self._analyze_player_events(events)
                 all_storylines.extend(event_storylines)
-            
+
             # 2. Analyze player statistics (focus on high-rated players)
             if players:
                 logger.info("Analyzing player statistics...")
                 stats_storylines = await self._analyze_player_statistics(players)
                 all_storylines.extend(stats_storylines)
-            
-            logger.info(f"Generated {len(all_storylines)} player performance storylines from separate component analysis")
+
+            logger.info(
+                f"Generated {len(all_storylines)} player performance storylines from separate component analysis"
+            )
             return all_storylines
-            
+
         except Exception as e:
             logger.error(f"Error analyzing player performance: {e}")
-            return ["Player performance analysis based on available data", "Individual contributions from the match data"]
+            return [
+                "Player performance analysis based on available data",
+                "Individual contributions from the match data",
+            ]

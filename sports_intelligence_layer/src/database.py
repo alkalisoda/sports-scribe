@@ -13,8 +13,13 @@ from functools import lru_cache
 from supabase import create_client, Client
 
 from config.soccer_entities import (
-    Player, Team, Competition, PlayerStatistics, TeamStatistics,
-    Position, CompetitionType
+    Player,
+    Team,
+    Competition,
+    PlayerStatistics,
+    TeamStatistics,
+    Position,
+    CompetitionType,
 )
 
 logger = logging.getLogger(__name__)
@@ -22,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 class DatabaseError(Exception):
     """Base exception for database operations."""
+
     pass
 
 
@@ -51,7 +57,13 @@ class SoccerDatabase:
     def get_player(self, player_id: str) -> Optional[Player]:
         """Get player by ID with caching (sync)."""
         try:
-            resp = self.supabase.table('players').select('*').eq('id', player_id).single().execute()
+            resp = (
+                self.supabase.table("players")
+                .select("*")
+                .eq("id", player_id)
+                .single()
+                .execute()
+            )
             data = resp.data
             if not data:
                 return None
@@ -64,7 +76,13 @@ class SoccerDatabase:
     def get_team(self, team_id: str) -> Optional[Team]:
         """Get team by ID with caching (sync)."""
         try:
-            resp = self.supabase.table('teams').select('*').eq('id', team_id).single().execute()
+            resp = (
+                self.supabase.table("teams")
+                .select("*")
+                .eq("id", team_id)
+                .single()
+                .execute()
+            )
             data = resp.data
             if not data:
                 return None
@@ -77,7 +95,13 @@ class SoccerDatabase:
     def get_competition(self, competition_id: str) -> Optional[Competition]:
         """Get competition by ID with caching (sync)."""
         try:
-            resp = self.supabase.table('competitions').select('*').eq('id', competition_id).single().execute()
+            resp = (
+                self.supabase.table("competitions")
+                .select("*")
+                .eq("id", competition_id)
+                .single()
+                .execute()
+            )
             data = resp.data
             if not data:
                 return None
@@ -91,10 +115,16 @@ class SoccerDatabase:
     def search_players(self, query: str, limit: int = 10) -> List[Player]:
         """Search players by name (sync)."""
         try:
-            resp = self.supabase.table('players').select('*').ilike('name', f"%{query}%").limit(limit).execute()
+            resp = (
+                self.supabase.table("players")
+                .select("*")
+                .ilike("name", f"%{query}%")
+                .limit(limit)
+                .execute()
+            )
             rows = resp.data or []
             return [self._convert_to_player(r) for r in rows]
-        except Exception as e:
+        except Exception:
             logger.exception("Error searching players: %s", query)
             logger.warning(f"Returning empty list for player search: {query}")
             return []
@@ -102,10 +132,16 @@ class SoccerDatabase:
     def search_teams(self, query: str, limit: int = 10) -> List[Team]:
         """Search teams by name (sync)."""
         try:
-            resp = self.supabase.table('teams').select('*').ilike('name', f"%{query}%").limit(limit).execute()
+            resp = (
+                self.supabase.table("teams")
+                .select("*")
+                .ilike("name", f"%{query}%")
+                .limit(limit)
+                .execute()
+            )
             rows = resp.data or []
             return [self._convert_to_team(r) for r in rows]
-        except Exception as e:
+        except Exception:
             logger.exception("Error searching teams: %s", query)
             logger.warning(f"Returning empty list for team search: {query}")
             return []
@@ -128,11 +164,11 @@ class SoccerDatabase:
     def get_player_stat_sum(
         self,
         player_id: str,
-        stat: str,                         # 'goals' | 'assists' | 'minutes_played' ...
+        stat: str,  # 'goals' | 'assists' | 'minutes_played' ...
         start_date: Optional[str] = None,  # 'YYYY-MM-DD'
         end_date: Optional[str] = None,
-        venue: Optional[str] = None,       # 'home' | 'away' | 'neutral'
-        last_n: Optional[int] = None
+        venue: Optional[str] = None,  # 'home' | 'away' | 'neutral'
+        last_n: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Minimal aggregation over player_match_stats.
@@ -141,16 +177,28 @@ class SoccerDatabase:
         """
         try:
             allowed_stats = {
-                "goals", "assists", "minutes_played", "shots_on_target",
-                "tackles", "interceptions", "passes_completed", "clean_sheets", "saves",
-                "yellow_cards", "red_cards", "fouls_committed", "fouls_drawn"
+                "goals",
+                "assists",
+                "minutes_played",
+                "shots_on_target",
+                "tackles",
+                "interceptions",
+                "passes_completed",
+                "clean_sheets",
+                "saves",
+                "yellow_cards",
+                "red_cards",
+                "fouls_committed",
+                "fouls_drawn",
             }
             if stat not in allowed_stats:
-                return {"status": "not_supported", "reason": f"stat_not_supported:{stat}"}
+                return {
+                    "status": "not_supported",
+                    "reason": f"stat_not_supported:{stat}",
+                }
 
             qb = (
-                self.supabase
-                .table("player_match_stats")
+                self.supabase.table("player_match_stats")
                 .select(f"{stat}, match_date")
                 .eq("player_id", player_id)
                 .order("match_date", desc=True)
@@ -165,11 +213,11 @@ class SoccerDatabase:
 
             resp = qb.execute()
             rows = resp.data or []
-            
+
             # Check if any data was found
             if not rows:
                 return {
-                    "status": "no_data", 
+                    "status": "no_data",
                     "reason": "no_matches_found",
                     "matches": 0,
                     "filters": {
@@ -179,7 +227,7 @@ class SoccerDatabase:
                         "last_n": last_n,
                     },
                 }
-            
+
             value = sum((r.get(stat) or 0) for r in rows)
 
             return {
@@ -200,9 +248,9 @@ class SoccerDatabase:
 
     def run_from_parsed(
         self,
-        parsed: Any,                        # ParsedSoccerQuery
+        parsed: Any,  # ParsedSoccerQuery
         player_name_to_id: Optional[Dict[str, str]] = None,
-        default_season_label: str = "2024-25"
+        default_season_label: str = "2024-25",
     ) -> Dict[str, Any]:
         """
         Execute a minimal, happy-path query directly from a ParsedSoccerQuery.
@@ -212,7 +260,10 @@ class SoccerDatabase:
             # 1) pick a player entity
             player_name = None
             for e in parsed.entities:
-                if getattr(e, "entity_type", None) and str(e.entity_type.value) == "player":
+                if (
+                    getattr(e, "entity_type", None)
+                    and str(e.entity_type.value) == "player"
+                ):
                     player_name = e.name
                     break
             if not player_name:
@@ -242,7 +293,11 @@ class SoccerDatabase:
             last_n = None
             start_date, end_date = None, None
             if str(parsed.time_context.value) == "last_n_games":
-                n = parsed.filters.get("last_n") if isinstance(parsed.filters, dict) else None
+                n = (
+                    parsed.filters.get("last_n")
+                    if isinstance(parsed.filters, dict)
+                    else None
+                )
                 if isinstance(n, int) and n > 0:
                     last_n = n
             elif str(parsed.time_context.value) == "last_season":
@@ -284,51 +339,55 @@ class SoccerDatabase:
     def _convert_to_player(self, data: Dict[str, Any]) -> Player:
         """Convert database record to Player object."""
         return Player(
-            id=str(data['id']),
-            name=data['name'],
-            common_name=data.get('common_name', data['name']),
-            nationality=data.get('nationality') or "",
-            birth_date=_safe_parse_iso(data.get('birth_date')),
-            position=self._safe_position(data.get('position')),
-            height_cm=data.get('height_cm'),
-            weight_kg=data.get('weight_kg'),
-            team_id=str(data['team_id']) if data.get('team_id') else None,
-            jersey_number=data.get('jersey_number'),
-            preferred_foot=data.get('preferred_foot'),
-            market_value=data.get('market_value')
+            id=str(data["id"]),
+            name=data["name"],
+            common_name=data.get("common_name", data["name"]),
+            nationality=data.get("nationality") or "",
+            birth_date=_safe_parse_iso(data.get("birth_date")),
+            position=self._safe_position(data.get("position")),
+            height_cm=data.get("height_cm"),
+            weight_kg=data.get("weight_kg"),
+            team_id=str(data["team_id"]) if data.get("team_id") else None,
+            jersey_number=data.get("jersey_number"),
+            preferred_foot=data.get("preferred_foot"),
+            market_value=data.get("market_value"),
         )
 
     def _convert_to_team(self, data: Dict[str, Any]) -> Team:
         """Convert database record to Team object."""
         return Team(
-            id=str(data['id']),
-            name=data['name'],
-            short_name=data.get('short_name', data['name']),
-            country=data.get('country') or "",
-            founded_year=data.get('founded_year'),
-            venue_name=data.get('venue_name'),
-            venue_capacity=data.get('venue_capacity'),
-            coach_name=data.get('coach_name'),
-            logo_url=data.get('logo_url'),
-            primary_color=data.get('primary_color'),
-            secondary_color=data.get('secondary_color')
+            id=str(data["id"]),
+            name=data["name"],
+            short_name=data.get("short_name", data["name"]),
+            country=data.get("country") or "",
+            founded_year=data.get("founded_year"),
+            venue_name=data.get("venue_name"),
+            venue_capacity=data.get("venue_capacity"),
+            coach_name=data.get("coach_name"),
+            logo_url=data.get("logo_url"),
+            primary_color=data.get("primary_color"),
+            secondary_color=data.get("secondary_color"),
         )
 
     def _convert_to_competition(self, data: Dict[str, Any]) -> Competition:
         """Convert database record to Competition object."""
         return Competition(
-            id=str(data['id']),
-            name=data['name'],
-            short_name=data.get('short_name', data['name']),
-            country=data.get('country') or "",
-            type=self._safe_competition_type(data.get('type')),
-            season=data.get('season') or "",
-            start_date=_safe_parse_iso(data.get('start_date')) or datetime.utcnow(),
-            end_date=_safe_parse_iso(data.get('end_date')) or datetime.utcnow(),
-            current_matchday=data.get('current_matchday'),
-            number_of_matchdays=data.get('number_of_matchdays'),
-            number_of_teams=data.get('number_of_teams'),
-            current_season_id=str(data['current_season_id']) if data.get('current_season_id') else None
+            id=str(data["id"]),
+            name=data["name"],
+            short_name=data.get("short_name", data["name"]),
+            country=data.get("country") or "",
+            type=self._safe_competition_type(data.get("type")),
+            season=data.get("season") or "",
+            start_date=_safe_parse_iso(data.get("start_date")) or datetime.utcnow(),
+            end_date=_safe_parse_iso(data.get("end_date")) or datetime.utcnow(),
+            current_matchday=data.get("current_matchday"),
+            number_of_matchdays=data.get("number_of_matchdays"),
+            number_of_teams=data.get("number_of_teams"),
+            current_season_id=(
+                str(data["current_season_id"])
+                if data.get("current_season_id")
+                else None
+            ),
         )
 
     def _safe_position(self, raw: Optional[str]) -> Position:
@@ -344,43 +403,55 @@ class SoccerDatabase:
             return CompetitionType.LEAGUE
 
     # (Optional) legacy aggregators retained for compatibility
-    def _aggregate_player_statistics(self, stats_data: List[Dict[str, Any]]) -> PlayerStatistics:
+    def _aggregate_player_statistics(
+        self, stats_data: List[Dict[str, Any]]
+    ) -> PlayerStatistics:
         """Aggregate multiple player statistics records (if you have a player_statistics table)."""
         aggregated = PlayerStatistics()
         for stat in stats_data or []:
-            aggregated.goals += stat.get('goals', 0)
-            aggregated.assists += stat.get('assists', 0)
-            aggregated.minutes_played += stat.get('minutes_played', 0)
-            aggregated.passes_completed += stat.get('passes_completed', 0)
-            aggregated.shots_on_target += stat.get('shots_on_target', 0)
-            aggregated.tackles += stat.get('tackles', 0)
-            aggregated.interceptions += stat.get('interceptions', 0)
-            aggregated.clean_sheets += stat.get('clean_sheets', 0)
-            aggregated.saves += stat.get('saves', 0)
-            aggregated.yellow_cards += stat.get('yellow_cards', 0)
-            aggregated.red_cards += stat.get('red_cards', 0)
-            aggregated.fouls_committed += stat.get('fouls_committed', 0)
-            aggregated.fouls_drawn += stat.get('fouls_drawn', 0)
+            aggregated.goals += stat.get("goals", 0)
+            aggregated.assists += stat.get("assists", 0)
+            aggregated.minutes_played += stat.get("minutes_played", 0)
+            aggregated.passes_completed += stat.get("passes_completed", 0)
+            aggregated.shots_on_target += stat.get("shots_on_target", 0)
+            aggregated.tackles += stat.get("tackles", 0)
+            aggregated.interceptions += stat.get("interceptions", 0)
+            aggregated.clean_sheets += stat.get("clean_sheets", 0)
+            aggregated.saves += stat.get("saves", 0)
+            aggregated.yellow_cards += stat.get("yellow_cards", 0)
+            aggregated.red_cards += stat.get("red_cards", 0)
+            aggregated.fouls_committed += stat.get("fouls_committed", 0)
+            aggregated.fouls_drawn += stat.get("fouls_drawn", 0)
         if stats_data:
             total = len(stats_data)
-            aggregated.pass_accuracy = sum(s.get('pass_accuracy', 0) for s in stats_data) / total
+            aggregated.pass_accuracy = (
+                sum(s.get("pass_accuracy", 0) for s in stats_data) / total
+            )
         return aggregated
 
-    def _aggregate_team_statistics(self, stats_data: List[Dict[str, Any]]) -> TeamStatistics:
+    def _aggregate_team_statistics(
+        self, stats_data: List[Dict[str, Any]]
+    ) -> TeamStatistics:
         """Aggregate multiple team statistics records (if you have a team_statistics table)."""
         aggregated = TeamStatistics()
         for stat in stats_data or []:
-            aggregated.matches_played += stat.get('matches_played', 0)
-            aggregated.wins += stat.get('wins', 0)
-            aggregated.draws += stat.get('draws', 0)
-            aggregated.losses += stat.get('losses', 0)
-            aggregated.goals_scored += stat.get('goals_scored', 0)
-            aggregated.goals_conceded += stat.get('goals_conceded', 0)
-            aggregated.clean_sheets += stat.get('clean_sheets', 0)
-            aggregated.points += stat.get('points', 0)
+            aggregated.matches_played += stat.get("matches_played", 0)
+            aggregated.wins += stat.get("wins", 0)
+            aggregated.draws += stat.get("draws", 0)
+            aggregated.losses += stat.get("losses", 0)
+            aggregated.goals_scored += stat.get("goals_scored", 0)
+            aggregated.goals_conceded += stat.get("goals_conceded", 0)
+            aggregated.clean_sheets += stat.get("clean_sheets", 0)
+            aggregated.points += stat.get("points", 0)
         if stats_data:
             total = len(stats_data)
-            aggregated.possession_avg = sum(s.get('possession_avg', 0) for s in stats_data) / total
-            aggregated.pass_accuracy_avg = sum(s.get('pass_accuracy_avg', 0) for s in stats_data) / total
-            aggregated.shots_per_game = sum(s.get('shots_per_game', 0) for s in stats_data) / total
+            aggregated.possession_avg = (
+                sum(s.get("possession_avg", 0) for s in stats_data) / total
+            )
+            aggregated.pass_accuracy_avg = (
+                sum(s.get("pass_accuracy_avg", 0) for s in stats_data) / total
+            )
+            aggregated.shots_per_game = (
+                sum(s.get("shots_per_game", 0) for s in stats_data) / total
+            )
         return aggregated

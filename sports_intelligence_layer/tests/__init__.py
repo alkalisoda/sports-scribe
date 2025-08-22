@@ -3,7 +3,6 @@
 Ensure package root is importable when tests are invoked via `python -m`.
 """
 
-import os
 import sys
 from pathlib import Path
 

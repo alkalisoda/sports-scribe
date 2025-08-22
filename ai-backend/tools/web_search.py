@@ -9,8 +9,8 @@ import logging
 from typing import Any
 
 import aiohttp
-from bs4 import BeautifulSoup
 from agents import function_tool
+from bs4 import BeautifulSoup
 
 from utils.security import sanitize_log_input
 
