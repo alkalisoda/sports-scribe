@@ -35,7 +35,10 @@ def test_parser_only():
         "How many goals has Simon Adingra scored?",
         "What's Jack Harrison's assist record?",
         "How many minutes has James Milner played?",
-        "Show me Beto's goals in the last 5 games"
+        "Show me Beto's goals in the last 5 games",
+        "How many goals does James have?",
+        "Show me Salah's goals, assists, and yellow cards this season",
+        "What are the top 3 scorers' goals, minutes played, and shots on target?"
     ]
     
     for i, query in enumerate(test_queries, 1):
