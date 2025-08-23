@@ -1,0 +1,67 @@
+{
+  "derby_mappings": {
+    "el_clasico": {
+      "trigger_terms": ["el clasico", "el clásico", "the classic"],
+      "teams": ["real madrid", "barcelona"],
+      "name": "El Clásico",
+      "league": "La Liga",
+      "locality": "Spain"
+    },
+    "north_london_derby": {
+      "trigger_terms": ["north london derby", "north london derbies", "arsenal vs tottenham"],
+      "teams": ["arsenal", "tottenham"],
+      "name": "North London Derby",
+      "league": "Premier League",
+      "locality": "London"
+    },
+    "manchester_derby": {
+      "trigger_terms": ["manchester derby", "man city vs united"],
+      "teams": ["manchester united", "manchester city"],
+      "name": "Manchester Derby",
+      "league": "Premier League",
+      "locality": "Manchester"
+    }
+  },
+  "entity_overlaps": {
+    "team_overlaps": [
+      ["man city", "city"],
+      ["manchester city", "city"],
+      ["man utd", "united"],
+      ["manchester united", "united"],
+      ["real madrid", "madrid"],
+      ["ac milan", "milan"],
+      ["inter milan", "milan"]
+    ],
+    "player_overlaps": []
+  },
+  "false_positives": {
+    "common_words": [
+      "what", "how", "when", "where", "who", "why",
+      "show", "tell", "give", "find", "get", "let"
+    ],
+    "team_specific": [
+      "team", "club", "side", "squad"
+    ],
+    "derby_names": [
+      "el clasico", "el clásico", "clasico", "clásico",
+      "north london derby", "manchester derby", "merseyside derby",
+      "derby", "derbies"
+    ]
+  },
+  "context_boosters": {
+    "player_indicators": [
+      "scored", "assisted", "saved", "player", "striker", 
+      "midfielder", "defender", "goalkeeper", "captain"
+    ],
+    "team_indicators": [
+      "club", "team", "side", "squad", "lineup", "XI"
+    ]
+  },
+  "normalization_rules": {
+    "case_preservation": [
+      "PSG", "KDB", "VAR"
+    ],
+    "accent_removal": true,
+    "whitespace_normalization": true
+  }
+}

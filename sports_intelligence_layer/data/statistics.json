@@ -1,0 +1,12 @@
+{
+  "goals": ["goal", "goals", "scored", "scoring", "goalscorer"],
+  "assists": ["assist", "assists", "assisted", "assisting"],
+  "clean_sheets": ["clean sheet", "clean sheets", "shutout", "shutouts"],
+  "pass_completion": ["pass completion", "passing accuracy", "pass rate"],
+  "possession": ["possession", "ball possession"],
+  "shots": ["shot", "shots", "shooting"],
+  "tackles": ["tackle", "tackles", "tackling"],
+  "saves": ["save", "saves", "saving"],
+  "minutes": ["minute", "minutes", "mins", "playing time"]
+}
+

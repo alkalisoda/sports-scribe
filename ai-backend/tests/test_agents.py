@@ -5,10 +5,10 @@ Basic test structure for football journalism agents.
 """
 
 import pytest
-
 from agents.data_collector import DataCollectorAgent
 from agents.editor import EditorAgent
 from agents.researcher import ResearchAgent
+
 from scriber_agents.writer import WriterAgent
 
 

@@ -1,5 +1,6 @@
-import sys
 import os
+import sys
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -10,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scriber_agents.writer import WriterAgent
 
+
 def main():
     api_key = os.getenv("API_KEY")  # Reads API key from environment variable
 
@@ -18,29 +20,26 @@ def main():
     game_info = {
         "date": "2025-07-08",
         "venue": "Wembley Stadium",
-        "score": {"Team A": 2, "Team B": 1}
+        "score": {"Team A": 2, "Team B": 1},
     }
 
-    team_info = {
-        "home": {"name": "Team A"},
-        "away": {"name": "Team B"}
-    }
+    team_info = {"home": {"name": "Team A"}, "away": {"name": "Team B"}}
 
     player_info = {
         "key_player": "Player 2",
-        "performance": "Scored the winning goal and assisted the equalizer"
+        "performance": "Scored the winning goal and assisted the equalizer",
     }
 
     research = {
         "storylines": [
             "A dramatic comeback in the second half.",
             "Player 2 was instrumental in the win.",
-            "Team A now sits at the top of the league table."
+            "Team A now sits at the top of the league table.",
         ],
         "quotes": [
             "Coach John: 'This team never gives up. They showed their spirit today.'",
-            "Player 2: 'I just gave my all for the badge.'"
-        ]
+            "Player 2: 'I just gave my all for the badge.'",
+        ],
     }
 
     try:
@@ -78,6 +77,7 @@ def main():
         # Export to PDF using pdfkit
         try:
             import pdfkit
+
             pdfkit.from_file("generated_article.html", "generated_article.pdf")
             print("\n📄 PDF version saved to 'generated_article.pdf'.")
         except ImportError:
@@ -87,6 +87,7 @@ def main():
 
     except Exception as e:
         print(f"\n❌ Error generating article: {e}")
+
 
 if __name__ == "__main__":
     main()

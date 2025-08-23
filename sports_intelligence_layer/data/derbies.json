@@ -1,0 +1,38 @@
+{
+  "north_london_derby": {
+    "teams": ["arsenal", "tottenham"],
+    "names": ["North London Derby"],
+    "league": "Premier League",
+    "locality": "London"
+  },
+  "el_clasico": {
+    "teams": ["real madrid", "barcelona"],
+    "names": ["El Clásico", "El Clasico", "The Classic"],
+    "league": "La Liga",
+    "locality": "Spain"
+  },
+  "manchester_derby": {
+    "teams": ["manchester united", "manchester city"],
+    "names": ["Manchester Derby"],
+    "league": "Premier League",
+    "locality": "Manchester"
+  },
+  "merseyside_derby": {
+    "teams": ["liverpool", "everton"],
+    "names": ["Merseyside Derby"],
+    "league": "Premier League",
+    "locality": "Liverpool"
+  },
+  "der_klassiker": {
+    "teams": ["bayern munich", "borussia dortmund"],
+    "names": ["Der Klassiker", "The Classic"],
+    "league": "Bundesliga",
+    "locality": "Germany"
+  },
+  "derby_della_madonnina": {
+    "teams": ["ac milan", "inter milan"],
+    "names": ["Derby della Madonnina", "Milan Derby"],
+    "league": "Serie A",
+    "locality": "Milan"
+  }
+}
