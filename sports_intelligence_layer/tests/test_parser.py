@@ -98,6 +98,275 @@ def test_context_query(parser):
     result = parser.parse_query(query)
     
     assert result.query_intent == "context"
+
+
+# ========================================
+# RANKING KEYWORDS TESTS
+# ========================================
+
+def test_ranking_keywords_loading(parser):
+    """Test that ranking keywords are properly loaded from JSON."""
+    # Check that ranking keywords configuration is loaded
+    assert hasattr(parser, 'ranking_keywords')
+    assert isinstance(parser.ranking_keywords, dict)
+    
+    # Check for expected sections
+    assert 'ranking_direction' in parser.ranking_keywords
+    assert 'ranking_metrics' in parser.ranking_keywords
+    assert 'ranking_competitions' in parser.ranking_keywords
+    assert 'ranking_positions' in parser.ranking_keywords
+    
+    # Check that we have both highest and lowest directions
+    directions = parser.ranking_keywords['ranking_direction']
+    assert 'highest' in directions
+    assert 'lowest' in directions
+    
+    # Check that we have common ranking keywords
+    highest_keywords = directions['highest']
+    assert 'most' in highest_keywords
+    assert 'highest' in highest_keywords
+    assert 'best' in highest_keywords
+    assert 'top' in highest_keywords
+
+
+def test_most_goals_ranking_query(parser):
+    """Test: Most goals in Premier League this season?"""
+    query = "Most goals in Premier League this season?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "goals"
+    assert result.time_context == TimeContext.THIS_SEASON
+    assert result.filters.get("competition") == "premier_league"
+    
+    # Check that ranking information is detected
+    ranking_info = result.filters.get("ranking")
+    assert ranking_info is not None
+    assert ranking_info["type"] == "ranking"
+    assert ranking_info["direction"] == "highest"
+    assert ranking_info["keyword"] == "most"
+
+
+def test_highest_assists_ranking_query(parser):
+    """Test: Highest assists in LaLiga last season?"""
+    query = "Highest assists in LaLiga last season?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "assists"
+    assert result.time_context == TimeContext.LAST_SEASON
+    assert result.filters.get("competition") == "laliga"
+    
+    # Check ranking information
+    ranking_info = result.filters.get("ranking")
+    assert ranking_info is not None
+    assert ranking_info["direction"] == "highest"
+    assert ranking_info["keyword"] == "highest"
+
+
+def test_best_goalkeeper_ranking_query(parser):
+    """Test: Best goalkeeper for clean sheets in Bundesliga?"""
+    query = "Best goalkeeper for clean sheets in Bundesliga?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "clean_sheets"
+    assert result.filters.get("competition") == "bundesliga"
+    assert result.filters.get("position") == "goalkeeper"
+    
+    # Check ranking information
+    ranking_info = result.filters.get("ranking")
+    assert ranking_info is not None
+    assert ranking_info["direction"] == "highest"
+    assert ranking_info["keyword"] == "best"
+
+
+def test_most_g_a_ranking_query(parser):
+    """Test: Most G/A in Serie A this season?"""
+    query = "Most G/A in Serie A this season?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "goal_contributions"
+    assert result.time_context == TimeContext.THIS_SEASON
+    assert result.filters.get("competition") == "serie_a"
+    
+    # Check ranking information
+    ranking_info = result.filters.get("ranking")
+    assert ranking_info is not None
+    assert ranking_info["direction"] == "highest"
+
+
+def test_worst_performance_ranking_query(parser):
+    """Test: Worst performance by defenders in Ligue 1?"""
+    query = "Worst performance by defenders in Ligue 1?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.filters.get("competition") == "ligue_1"
+    assert result.filters.get("position") == "defender"
+    
+    # Check ranking information
+    ranking_info = result.filters.get("ranking")
+    assert ranking_info is not None
+    assert ranking_info["direction"] == "lowest"
+    assert ranking_info["keyword"] == "worst"
+
+
+def test_who_has_most_pattern(parser):
+    """Test: Who has the most goals in Champions League?"""
+    query = "Who has the most goals in Champions League?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "goals"
+    assert result.filters.get("competition") == "champions_league"
+    
+    # Check ranking information
+    ranking_info = result.filters.get("ranking")
+    assert ranking_info is not None
+    assert ranking_info["type"] == "ranking"
+    assert ranking_info["direction"] == "highest"
+
+
+def test_which_player_has_pattern(parser):
+    """Test: Which player has the most assists per 90 minutes?"""
+    query = "Which player has the most assists per 90 minutes?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "assists_per_90"
+    
+    # Check ranking information
+    ranking_info = result.filters.get("ranking")
+    assert ranking_info is not None
+    assert ranking_info["direction"] == "highest"
+
+
+def test_ranking_with_position_filter(parser):
+    """Test: Most take-ons by wingers in Premier League?"""
+    query = "Most take-ons by wingers in Premier League?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "take_ons"
+    assert result.filters.get("competition") == "premier_league"
+    assert result.filters.get("position") == "winger"
+    
+    # Check ranking information
+    ranking_info = result.filters.get("ranking")
+    assert ranking_info is not None
+    assert ranking_info["direction"] == "highest"
+
+
+def test_ranking_with_time_context(parser):
+    """Test: Most chances created in the last 5 games?"""
+    query = "Most chances created in the last 5 games?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "chances_created"
+    assert result.time_context == TimeContext.LAST_N_GAMES
+    
+    # Check ranking information
+    ranking_info = result.filters.get("ranking")
+    assert ranking_info is not None
+    assert ranking_info["direction"] == "highest"
+
+
+def test_ranking_question_patterns(parser):
+    """Test various ranking question patterns."""
+    test_cases = [
+        ("Who scored the most hat tricks?", "hat_tricks"),
+        ("Which team has the most clean sheets?", "clean_sheets"),
+        ("Who is the best passer?", "pass_completion"),
+        ("Who is the top scorer?", "goals"),
+    ]
+    
+    for query, expected_stat in test_cases:
+        result = parser.parse_query(query)
+        assert result.query_intent == "stat_lookup"
+        assert result.statistic_requested == expected_stat
+        
+        # Check ranking information
+        ranking_info = result.filters.get("ranking")
+        assert ranking_info is not None
+        assert ranking_info["type"] == "ranking"
+        assert ranking_info["direction"] == "highest"
+
+
+def test_ranking_direction_keywords(parser):
+    """Test different ranking direction keywords."""
+    test_cases = [
+        ("Most goals", "highest"),
+        ("Highest assists", "highest"),
+        ("Best performance", "highest"),
+        ("Top scorer", "highest"),
+        ("Greatest player", "highest"),
+        ("Least goals", "lowest"),
+        ("Lowest assists", "lowest"),
+        ("Worst performance", "lowest"),
+        ("Bottom team", "lowest"),
+    ]
+    
+    for query, expected_direction in test_cases:
+        result = parser.parse_query(query)
+        ranking_info = result.filters.get("ranking")
+        if ranking_info:
+            assert ranking_info["direction"] == expected_direction
+
+
+def test_ranking_metrics_recognition(parser):
+    """Test that all ranking metrics are properly recognized."""
+    metrics_to_test = [
+        ("goals", "Most goals"),
+        ("assists", "Most assists"),
+        ("goal_contributions", "Most G/A"),
+        ("clean_sheets", "Most clean sheets"),
+        ("hat_tricks", "Most hat tricks"),
+        ("chances_created", "Most chances created"),
+        ("take_ons", "Most take-ons"),
+        ("xg_overperformance", "Most xG overperformance"),
+        ("through_balls", "Most through balls"),
+        ("goals_per_game", "Most goals per game"),
+        ("assists_per_90", "Most assists per 90"),
+    ]
+    
+    for expected_metric, query in metrics_to_test:
+        result = parser.parse_query(query)
+        assert result.statistic_requested == expected_metric, f"Failed for query: {query}"
+
+
+def test_ranking_competitions_recognition(parser):
+    """Test that all ranking competitions are properly recognized."""
+    competitions_to_test = [
+        ("premier_league", "Most goals in Premier League"),
+        ("laliga", "Most goals in LaLiga"),
+        ("bundesliga", "Most goals in Bundesliga"),
+        ("serie_a", "Most goals in Serie A"),
+        ("ligue_1", "Most goals in Ligue 1"),
+        ("champions_league", "Most goals in Champions League"),
+        ("europa_league", "Most goals in Europa League"),
+    ]
+    
+    for expected_comp, query in competitions_to_test:
+        result = parser.parse_query(query)
+        assert result.filters.get("competition") == expected_comp, f"Failed for query: {query}"
+
+
+def test_ranking_positions_recognition(parser):
+    """Test that all ranking positions are properly recognized."""
+    positions_to_test = [
+        ("goalkeeper", "Most saves by goalkeeper"),
+        ("defender", "Most tackles by defender"),
+        ("midfielder", "Most assists by midfielder"),
+        ("winger", "Most take-ons by winger"),
+        ("striker", "Most goals by striker"),
+    ]
+    
+    for expected_pos, query in positions_to_test:
+        result = parser.parse_query(query)
+        assert result.filters.get("position") == expected_pos, f"Failed for query: {query}"
     assert len(result.entities) == 2
     player = next(e for e in result.entities if e.entity_type == EntityType.PLAYER)
     team = next(e for e in result.entities if e.entity_type == EntityType.TEAM)
@@ -489,6 +758,464 @@ def test_multiple_stats_query_detailed(parser):
 
 
 # ============================================================================
+# NEW TEST CATEGORIES - COMPREHENSIVE SOCCER QUERIES
+# ============================================================================
+
+# ============================================================================
+# STATS TESTS
+# ============================================================================
+
+def test_most_goals_assists_laliga_season(parser):
+    """Test: Most G/A in a LaLiga season?"""
+    query = "Most G/A in a LaLiga season?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested in ["goals", "assists", "goal_contributions"]
+    assert result.time_context == TimeContext.LEAGUE_ONLY
+    assert result.filters.get("competition") == "laliga"
+    assert result.filters.get("ranking") is not None
+    assert result.filters.get("ranking", {}).get("direction") == "highest"
+
+
+def test_most_pl_hat_tricks_all_time(parser):
+    """Test: Who scored the most PL hat tricks all time?"""
+    query = "Who scored the most PL hat tricks all time?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "hat_tricks"
+    assert result.time_context == TimeContext.CAREER
+    assert result.filters.get("competition") == "premier_league"
+    assert result.filters.get("ranking") is not None
+    assert result.filters.get("ranking", {}).get("direction") == "highest"
+
+
+def test_most_chances_created_pl_seasons(parser):
+    """Test: Which player has created the most chances in the last 2 PL seasons?"""
+    query = "Which player has created the most chances in the last 2 PL seasons?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "chances_created"
+    assert result.time_context == TimeContext.LAST_SEASON
+    assert result.filters.get("competition") == "premier_league"
+
+
+# ============================================================================
+# ADVANCED STATS TESTS
+# ============================================================================
+
+def test_most_take_ons_laliga_wingers(parser):
+    """Test: Which winger has completed the most take-ons in the last 3 LaLiga seasons?"""
+    query = "Which winger has completed the most take-ons in the last 3 LaLiga seasons?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "take_ons"
+    assert result.time_context == TimeContext.LAST_SEASON
+    assert result.filters.get("competition") == "laliga"
+    assert result.filters.get("position") == "winger"
+
+
+def test_highest_xg_overperformers_prem(parser):
+    """Test: Highest xG overperformers in the Prem?"""
+    query = "Highest xG overperformers in the Prem?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "xg_overperformance"
+    assert result.filters.get("competition") == "premier_league"
+
+
+def test_most_through_balls_laliga_last_season(parser):
+    """Test: Who had the most through balls in LaLiga last season?"""
+    query = "Who had the most through balls in LaLiga last season?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "through_balls"
+    assert result.time_context == TimeContext.LAST_SEASON
+    assert result.filters.get("competition") == "laliga"
+
+
+# ============================================================================
+# SCORES TESTS
+# ============================================================================
+
+def test_did_barcelona_win(parser):
+    """Test: Did Barcelona win?"""
+    query = "Did Barcelona win?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "match_result"
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "Barcelona"
+    assert result.entities[0].entity_type == EntityType.TEAM
+
+
+def test_last_manchester_derby_score(parser):
+    """Test: What was the score of the last Manchester derby?"""
+    query = "What was the score of the last Manchester derby?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "match_result"
+    assert result.filters.get("match_type") == "derby"
+    assert result.filters.get("derby_info", {}).get("key") == "manchester_derby"
+
+
+def test_arsenal_match_result(parser):
+    """Test: What happened in the Arsenal match?"""
+    query = "What happened in the Arsenal match?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "match_result"
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "Arsenal"
+    assert result.entities[0].entity_type == EntityType.TEAM
+
+
+# ============================================================================
+# FIXTURES TESTS
+# ============================================================================
+
+def test_pl_matches_this_week(parser):
+    """Test: What PL matches are on this week?"""
+    query = "What PL matches are on this week?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "fixtures"
+    assert result.time_context == TimeContext.CURRENT_MONTH
+    assert result.filters.get("competition") == "premier_league"
+
+
+def test_next_el_clasico_date(parser):
+    """Test: When is the next El Clásico?"""
+    query = "When is the next El Clásico?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "fixtures"
+    assert result.filters.get("match_type") == "derby"
+    assert result.filters.get("derby_info", {}).get("key") == "el_clasico"
+
+
+def test_liverpool_next_match(parser):
+    """Test: When do Liverpool play next?"""
+    query = "When do Liverpool play next?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "fixtures"
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "Liverpool"
+    assert result.entities[0].entity_type == EntityType.TEAM
+
+
+# ============================================================================
+# TABLE TESTS
+# ============================================================================
+
+def test_premier_league_table(parser):
+    """Test: Premier League table?"""
+    query = "Premier League table?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "table"
+    assert result.filters.get("competition") == "premier_league"
+
+
+def test_laliga_winner_last_season(parser):
+    """Test: Who won LaLiga last season?"""
+    query = "Who won LaLiga last season?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "table"
+    assert result.time_context == TimeContext.LAST_SEASON
+    assert result.filters.get("competition") == "laliga"
+    assert result.filters.get("position") == "winner"
+
+
+def test_real_madrid_record_last_year(parser):
+    """Test: What was Real Madrid's record last year?"""
+    query = "What was Real Madrid's record last year?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.time_context == TimeContext.LAST_SEASON
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "Real Madrid"
+    assert result.entities[0].entity_type == EntityType.TEAM
+
+
+# ============================================================================
+# BIOS TESTS
+# ============================================================================
+
+def test_zidane_stats_bio(parser):
+    """Test: Zinedine Zidane stats"""
+    query = "Zinedine Zidane stats"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "bio"
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "Zinedine Zidane"
+    assert result.entities[0].entity_type == EntityType.PLAYER
+
+
+def test_peter_crouch_height(parser):
+    """Test: How tall is Peter Crouch?"""
+    query = "How tall is Peter Crouch?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "bio"
+    assert result.statistic_requested == "height"
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "Peter Crouch"
+    assert result.entities[0].entity_type == EntityType.PLAYER
+
+
+def test_bukayo_saka_age(parser):
+    """Test: How old is Bukayo Saka?"""
+    query = "How old is Bukayo Saka?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "bio"
+    assert result.statistic_requested == "age"
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "Bukayo Saka"
+    assert result.entities[0].entity_type == EntityType.PLAYER
+
+
+# ============================================================================
+# RECAPS TESTS
+# ============================================================================
+
+def test_neymar_2015_16_season_recap(parser):
+    """Test: How did Neymar do in 2015/16 season?"""
+    query = "How did Neymar do in 2015/16 season?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "recap"
+    assert result.time_context == TimeContext.LAST_SEASON
+    assert result.filters.get("season") == "2015/16"
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "Neymar"
+    assert result.entities[0].entity_type == EntityType.PLAYER
+
+
+def test_phil_foden_current_form(parser):
+    """Test: How is Phil Foden doing?"""
+    query = "How is Phil Foden doing?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "recap"
+    assert result.time_context == TimeContext.THIS_SEASON
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "Phil Foden"
+    assert result.entities[0].entity_type == EntityType.PLAYER
+
+
+def test_vini_jr_last_season_recap(parser):
+    """Test: Did Vini Jr have a good season last year?"""
+    query = "Did Vini Jr have a good season last year?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "recap"
+    assert result.time_context == TimeContext.LAST_SEASON
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "Vini Jr"
+    assert result.entities[0].entity_type == EntityType.PLAYER
+
+
+# ============================================================================
+# ADDITIONAL COMPREHENSIVE STATS TESTS
+# ============================================================================
+
+def test_goals_per_game_ratio(parser):
+    """Test: Who has the best goals per game ratio in the Premier League?"""
+    query = "Who has the best goals per game ratio in the Premier League?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "goals_per_game"
+    assert result.filters.get("competition") == "premier_league"
+
+
+def test_clean_sheets_goalkeeper(parser):
+    """Test: Which goalkeeper has kept the most clean sheets this season?"""
+    query = "Which goalkeeper has kept the most clean sheets this season?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "clean_sheets"
+    assert result.time_context == TimeContext.THIS_SEASON
+    assert result.filters.get("position") == "goalkeeper"
+
+
+def test_assists_per_90_minutes(parser):
+    """Test: Who has the highest assists per 90 minutes in LaLiga?"""
+    query = "Who has the highest assists per 90 minutes in LaLiga?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.statistic_requested == "assists_per_90"
+    assert result.filters.get("competition") == "laliga"
+
+
+# ============================================================================
+# COMPARISON TESTS
+# ============================================================================
+
+def test_player_vs_player_comparison(parser):
+    """Test: How does Haaland's scoring compare to Mbappe's?"""
+    query = "How does Haaland's scoring compare to Mbappe's?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "comparison"
+    assert result.comparison_type == ComparisonType.VS_OPPONENT
+    assert result.statistic_requested == "goals"
+    assert len(result.entities) == 2
+    player_names = [e.name for e in result.entities if e.entity_type == EntityType.PLAYER]
+    assert "Haaland" in player_names
+    assert "Mbappe" in player_names
+
+
+def test_team_vs_team_comparison(parser):
+    """Test: How does Arsenal's defense compare to City's?"""
+    query = "How does Arsenal's defense compare to City's?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "comparison"
+    assert result.comparison_type == ComparisonType.VS_OPPONENT
+    assert result.statistic_requested == "defense"
+    assert len(result.entities) == 2
+    team_names = [e.name for e in result.entities if e.entity_type == EntityType.TEAM]
+    assert "Arsenal" in team_names
+    assert "City" in team_names
+
+
+def test_season_vs_season_comparison(parser):
+    """Test: How does Salah's performance this season compare to last season?"""
+    query = "How does Salah's performance this season compare to last season?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "comparison"
+    assert result.comparison_type == ComparisonType.VS_SEASON
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "Salah"
+    assert result.entities[0].entity_type == EntityType.PLAYER
+
+
+# ============================================================================
+# ADDITIONAL EDGE CASES AND VARIATIONS
+# ============================================================================
+
+def test_abbreviated_player_names(parser):
+    """Test: KDB stats this season"""
+    query = "KDB stats this season"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.time_context == TimeContext.THIS_SEASON
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "KDB"
+    assert result.entities[0].entity_type == EntityType.PLAYER
+
+
+def test_team_nicknames(parser):
+    """Test: The Reds performance"""
+    query = "The Reds performance"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "Reds"
+    assert result.entities[0].entity_type == EntityType.TEAM
+
+
+def test_competition_specific_queries(parser):
+    """Test: Champions League top scorer"""
+    query = "Champions League top scorer"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.time_context == TimeContext.CHAMPIONS_LEAGUE
+    assert result.statistic_requested == "goals"
+
+
+def test_venue_specific_queries(parser):
+    """Test: Home form vs away form"""
+    query = "Home form vs away form"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "comparison"
+    assert result.filters.get("venue") in ["home", "away"]
+
+
+def test_position_specific_queries(parser):
+    """Test: Best goalkeeper this season"""
+    query = "Best goalkeeper this season"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.time_context == TimeContext.THIS_SEASON
+    assert result.filters.get("position") == "goalkeeper"
+
+
+def test_historical_milestone_queries(parser):
+    """Test: First player to score 100 Premier League goals"""
+    query = "First player to score 100 Premier League goals"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "historical"
+    assert result.statistic_requested == "goals"
+    assert result.filters.get("competition") == "premier_league"
+
+
+def test_form_analysis_queries(parser):
+    """Test: Liverpool's form in the last 5 games"""
+    query = "Liverpool's form in the last 5 games"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "stat_lookup"
+    assert result.time_context == TimeContext.LAST_N_GAMES
+    assert len(result.entities) == 1
+    assert result.entities[0].name == "Liverpool"
+    assert result.entities[0].entity_type == EntityType.TEAM
+
+
+def test_derby_specific_queries(parser):
+    """Test: North London derby history"""
+    query = "North London derby history"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "historical"
+    assert result.filters.get("match_type") == "derby"
+    assert result.filters.get("derby_info", {}).get("key") == "north_london_derby"
+
+
+def test_individual_match_queries(parser):
+    """Test: Arsenal vs Chelsea result"""
+    query = "Arsenal vs Chelsea result"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "match_result"
+    assert len(result.entities) == 2
+    team_names = [e.name for e in result.entities if e.entity_type == EntityType.TEAM]
+    assert "Arsenal" in team_names
+    assert "Chelsea" in team_names
+
+
+def test_league_table_position_queries(parser):
+    """Test: Who is top of the Premier League?"""
+    query = "Who is top of the Premier League?"
+    result = parser.parse_query(query)
+    
+    assert result.query_intent == "table"
+    assert result.filters.get("competition") == "premier_league"
+    assert result.filters.get("position") == "top"
+
+
+# ============================================================================
 # INTEGRATION TESTS (from user's sample)
 # ============================================================================
 
@@ -573,7 +1300,42 @@ def analyze_sample_queries():
         # Complex Queries
         "What storylines emerge from Mbappe's performance against his former club?",
         "How significant is this comeback for Arsenal's title hopes?",
-        "What context makes this derby result historically important?"
+        "What context makes this derby result historically important?",
+        
+        # Stats Queries
+        "Most G/A in a LaLiga season?",
+        "Who scored the most PL hat tricks all time?",
+        "Which player has created the most chances in the last 2 PL seasons?",
+        
+        # Advanced Stats
+        "Which winger has completed the most take-ons in the last 3 LaLiga seasons?",
+        "Highest xG overperformers in the Prem?",
+        "Who had the most through balls in LaLiga last season?",
+        
+        # Scores
+        "Did Barcelona win?",
+        "What was the score of the last Manchester derby?",
+        "What happened in the Arsenal match?",
+        
+        # Fixtures
+        "What PL matches are on this week?",
+        "When is the next El Clásico?",
+        "When do Liverpool play next?",
+        
+        # Table
+        "Premier League table?",
+        "Who won LaLiga last season?",
+        "What was Real Madrid's record last year?",
+        
+        # Bios
+        "Zinedine Zidane stats",
+        "How tall is Peter Crouch?",
+        "How old is Bukayo Saka?",
+        
+        # Recaps
+        "How did Neymar do in 2015/16 season?",
+        "How is Phil Foden doing?",
+        "Did Vini Jr have a good season last year?"
     ]
     
     print("🔍 Query Analysis Report\n")
@@ -629,6 +1391,63 @@ def run_comprehensive_test_suite():
             "test_player_comparison_query_detailed",
             "test_significance_context_query",
             "test_multiple_stats_query_detailed"
+        ]),
+        ("Stats Tests", [
+            "test_most_goals_assists_laliga_season",
+            "test_most_pl_hat_tricks_all_time",
+            "test_most_chances_created_pl_seasons"
+        ]),
+        ("Advanced Stats Tests", [
+            "test_most_take_ons_laliga_wingers",
+            "test_highest_xg_overperformers_prem",
+            "test_most_through_balls_laliga_last_season"
+        ]),
+        ("Scores Tests", [
+            "test_did_barcelona_win",
+            "test_last_manchester_derby_score",
+            "test_arsenal_match_result"
+        ]),
+        ("Fixtures Tests", [
+            "test_pl_matches_this_week",
+            "test_next_el_clasico_date",
+            "test_liverpool_next_match"
+        ]),
+        ("Table Tests", [
+            "test_premier_league_table",
+            "test_laliga_winner_last_season",
+            "test_real_madrid_record_last_year"
+        ]),
+        ("Bios Tests", [
+            "test_zidane_stats_bio",
+            "test_peter_crouch_height",
+            "test_bukayo_saka_age"
+        ]),
+        ("Recaps Tests", [
+            "test_neymar_2015_16_season_recap",
+            "test_phil_foden_current_form",
+            "test_vini_jr_last_season_recap"
+        ]),
+        ("Comprehensive Stats Tests", [
+            "test_goals_per_game_ratio",
+            "test_clean_sheets_goalkeeper",
+            "test_assists_per_90_minutes"
+        ]),
+        ("Comparison Tests", [
+            "test_player_vs_player_comparison",
+            "test_team_vs_team_comparison",
+            "test_season_vs_season_comparison"
+        ]),
+        ("Edge Cases and Variations", [
+            "test_abbreviated_player_names",
+            "test_team_nicknames",
+            "test_competition_specific_queries",
+            "test_venue_specific_queries",
+            "test_position_specific_queries",
+            "test_historical_milestone_queries",
+            "test_form_analysis_queries",
+            "test_derby_specific_queries",
+            "test_individual_match_queries",
+            "test_league_table_position_queries"
         ])
     ]
     

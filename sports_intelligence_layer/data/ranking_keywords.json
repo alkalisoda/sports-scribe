@@ -1,0 +1,366 @@
+{
+  "ranking_direction": {
+    "highest": [
+      "most",
+      "highest",
+      "best",
+      "top",
+      "greatest",
+      "maximum",
+      "leading",
+      "premier",
+      "supreme",
+      "outstanding",
+      "exceptional",
+      "record-breaking",
+      "unprecedented",
+      "dominant",
+      "superior"
+    ],
+    "lowest": [
+      "least",
+      "lowest",
+      "worst",
+      "bottom",
+      "minimum",
+      "poorest",
+      "weakest",
+      "inferior",
+      "subpar",
+      "underperforming",
+      "struggling",
+      "failing"
+    ]
+  },
+  "ranking_categories": {
+    "performance": [
+      "performer",
+      "performance",
+      "form",
+      "output",
+      "production",
+      "contribution",
+      "impact",
+      "influence",
+      "effectiveness",
+      "efficiency"
+    ],
+    "scoring": [
+      "scorer",
+      "goalscorer",
+      "scoring",
+      "goals",
+      "finishing",
+      "conversion",
+      "striker",
+      "attacker",
+      "forward"
+    ],
+    "assisting": [
+      "assister",
+      "assisting",
+      "assists",
+      "playmaker",
+      "creator",
+      "provider",
+      "supplier",
+      "facilitator"
+    ],
+    "defensive": [
+      "defender",
+      "defending",
+      "defense",
+      "defence",
+      "stopper",
+      "protector",
+      "guardian",
+      "shield"
+    ],
+    "goalkeeping": [
+      "goalkeeper",
+      "keeper",
+      "goalie",
+      "shot-stopper",
+      "clean sheets",
+      "saves",
+      "saving"
+    ],
+    "possession": [
+      "possession",
+      "ball control",
+      "retention",
+      "keeping",
+      "maintaining",
+      "holding"
+    ],
+    "passing": [
+      "passer",
+      "passing",
+      "distribution",
+      "circulation",
+      "movement",
+      "flow"
+    ],
+    "tackling": [
+      "tackler",
+      "tackling",
+      "interceptions",
+      "recoveries",
+      "steals",
+      "wins"
+    ]
+  },
+  "ranking_contexts": {
+    "season": [
+      "this season",
+      "current season",
+      "2024-25",
+      "2024/25",
+      "season",
+      "campaign"
+    ],
+    "career": [
+      "career",
+      "all time",
+      "total",
+      "overall",
+      "lifetime",
+      "ever",
+      "history"
+    ],
+    "recent": [
+      "recent",
+      "latest",
+      "last",
+      "previous",
+      "past",
+      "lately",
+      "currently"
+    ],
+    "specific_period": [
+      "last 5 games",
+      "last 10 matches",
+      "this month",
+      "this year",
+      "last season",
+      "previous campaign"
+    ]
+  },
+  "ranking_competitions": {
+    "premier_league": [
+      "premier league",
+      "pl",
+      "english premier league",
+      "premiership",
+      "english top flight"
+    ],
+    "laliga": [
+      "laliga",
+      "la liga",
+      "spanish league",
+      "spanish top flight",
+      "primera division"
+    ],
+    "bundesliga": [
+      "bundesliga",
+      "german league",
+      "german top flight"
+    ],
+    "serie_a": [
+      "serie a",
+      "italian league",
+      "italian top flight"
+    ],
+    "ligue_1": [
+      "ligue 1",
+      "french league",
+      "french top flight"
+    ],
+    "champions_league": [
+      "champions league",
+      "ucl",
+      "cl",
+      "european cup"
+    ],
+    "europa_league": [
+      "europa league",
+      "uel",
+      "uefa cup"
+    ]
+  },
+  "ranking_positions": {
+    "goalkeeper": [
+      "goalkeeper",
+      "keeper",
+      "gk",
+      "goalie",
+      "shot-stopper"
+    ],
+    "defender": [
+      "defender",
+      "defence",
+      "defense",
+      "def",
+      "cb",
+      "rb",
+      "lb",
+      "full-back",
+      "centre-back"
+    ],
+    "midfielder": [
+      "midfielder",
+      "mid",
+      "cm",
+      "dm",
+      "am",
+      "central midfielder",
+      "defensive midfielder",
+      "attacking midfielder"
+    ],
+    "winger": [
+      "winger",
+      "wing",
+      "lw",
+      "rw",
+      "wide player",
+      "flank player"
+    ],
+    "striker": [
+      "striker",
+      "forward",
+      "cf",
+      "st",
+      "attacker",
+      "centre-forward"
+    ]
+  },
+  "ranking_metrics": {
+    "goals": [
+      "goals",
+      "scored",
+      "scoring",
+      "goalscorer",
+      "finishing"
+    ],
+    "assists": [
+      "assists",
+      "assisted",
+      "assisting",
+      "assister",
+      "playmaking"
+    ],
+    "goal_contributions": [
+      "g/a",
+      "g\\/a",
+      "goals and assists",
+      "goal contributions",
+      "goal contribution",
+      "involvements"
+    ],
+    "clean_sheets": [
+      "clean sheets",
+      "clean sheet",
+      "shutouts",
+      "shutout",
+      "clean games"
+    ],
+    "hat_tricks": [
+      "hat tricks",
+      "hat trick",
+      "hat-tricks",
+      "hat-trick",
+      "three goals"
+    ],
+    "chances_created": [
+      "chances created",
+      "chance creation",
+      "key passes",
+      "opportunities created"
+    ],
+    "take_ons": [
+      "take ons",
+      "take on",
+      "take-ons",
+      "take-on",
+      "dribbles",
+      "dribbling",
+      "runs"
+    ],
+    "xg_overperformance": [
+      "xg overperformance",
+      "xG overperformance",
+      "expected goals overperformance",
+      "xg vs actual",
+      "xG vs actual"
+    ],
+    "through_balls": [
+      "through balls",
+      "through ball",
+      "through-balls",
+      "through-ball",
+      "key passes"
+    ],
+    "goals_per_game": [
+      "goals per game",
+      "gpg",
+      "goals/game",
+      "scoring rate"
+    ],
+    "assists_per_90": [
+      "assists per 90",
+      "assists per 90 minutes",
+      "assists/90",
+      "assist rate"
+    ],
+    "pass_completion": [
+      "pass completion",
+      "passing accuracy",
+      "pass rate",
+      "pass success"
+    ],
+    "possession": [
+      "possession",
+      "ball possession",
+      "possession percentage"
+    ],
+    "tackles": [
+      "tackles",
+      "tackling",
+      "tackle success"
+    ],
+    "saves": [
+      "saves",
+      "saving",
+      "save percentage"
+    ]
+  },
+  "ranking_patterns": {
+    "most_in_competition": [
+      "most {metric} in {competition}",
+      "highest {metric} in {competition}",
+      "best {metric} in {competition}",
+      "top {metric} in {competition}"
+    ],
+    "most_by_position": [
+      "most {metric} by {position}",
+      "highest {metric} by {position}",
+      "best {position} for {metric}",
+      "top {position} in {metric}"
+    ],
+    "most_in_timeframe": [
+      "most {metric} {timeframe}",
+      "highest {metric} {timeframe}",
+      "best {metric} {timeframe}",
+      "top {metric} {timeframe}"
+    ],
+    "ranking_question": [
+      "who has the most",
+      "who scored the most",
+      "who assisted the most",
+      "which player has",
+      "which team has",
+      "who is the best",
+      "who is the top"
+    ]
+  }
+}

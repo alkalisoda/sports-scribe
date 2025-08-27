@@ -26,6 +26,16 @@ class CompetitionType(Enum):
     CUP = "cup"
     INTERNATIONAL = "international"
     FRIENDLY = "friendly"
+    API_FOOTBALL = "api-football"
+
+
+class MatchStatus(Enum):
+    """Match status types."""
+    SCHEDULED = "scheduled"
+    LIVE = "live"
+    FINISHED = "Match Finished"
+    POSTPONED = "postponed"
+    CANCELLED = "cancelled"
 
 
 class StatisticType(Enum):
@@ -188,15 +198,15 @@ class Team:
 
 @dataclass
 class Competition:
-    """Competition entity with comprehensive attributes."""
+    """Competition/League entity with comprehensive attributes."""
     id: str
     name: str
     short_name: str
     country: str
     type: CompetitionType
     season: str
-    start_date: datetime
-    end_date: datetime
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
     current_matchday: Optional[int] = None
     number_of_matchdays: Optional[int] = None
     number_of_teams: Optional[int] = None
@@ -211,12 +221,62 @@ class Competition:
             "country": self.country,
             "type": self.type.value,
             "season": self.season,
-            "start_date": self.start_date.isoformat(),
-            "end_date": self.end_date.isoformat(),
+            "start_date": self.start_date.isoformat() if self.start_date else None,
+            "end_date": self.end_date.isoformat() if self.end_date else None,
             "current_matchday": self.current_matchday,
             "number_of_matchdays": self.number_of_matchdays,
             "number_of_teams": self.number_of_teams,
             "current_season_id": self.current_season_id
+        }
+
+
+@dataclass
+class Match:
+    """Match/Fixture entity based on current Supabase structure."""
+    id: int
+    name: str  # Competition name (e.g., "Premier League")
+    type: str  # Source type (e.g., "api-football")
+    country: str
+    season: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    status: Optional[str] = None
+    venue_id: Optional[int] = None
+    league_id: Optional[int] = None
+    home_team_id: Optional[int] = None
+    away_team_id: Optional[int] = None
+    goals_home: Optional[int] = None
+    goals_away: Optional[int] = None
+    goals_home_half_time: Optional[int] = None
+    goals_away_half_time: Optional[int] = None
+    goals_home_extra_time: Optional[int] = None
+    goals_away_extra_time: Optional[int] = None
+    penalty_home: Optional[int] = None
+    penalty_away: Optional[int] = None
+    
+    def to_dict(self) -> Dict:
+        """Convert match to dictionary."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "type": self.type,
+            "country": self.country,
+            "season": self.season,
+            "start_date": self.start_date,
+            "end_date": self.end_date,
+            "status": self.status,
+            "venue_id": self.venue_id,
+            "league_id": self.league_id,
+            "home_team_id": self.home_team_id,
+            "away_team_id": self.away_team_id,
+            "goals_home": self.goals_home,
+            "goals_away": self.goals_away,
+            "goals_home_half_time": self.goals_home_half_time,
+            "goals_away_half_time": self.goals_away_half_time,
+            "goals_home_extra_time": self.goals_home_extra_time,
+            "goals_away_extra_time": self.goals_away_extra_time,
+            "penalty_home": self.penalty_home,
+            "penalty_away": self.penalty_away
         }
 
 
