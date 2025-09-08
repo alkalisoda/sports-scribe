@@ -1,4 +1,19 @@
 services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   ai-backend:
     build:
       context: ./ai-backend
@@ -42,6 +57,7 @@ services:
       - ./web/.env.local
     depends_on:
       - ai-backend
+      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 30s
@@ -64,4 +80,6 @@ networks:
 
 volumes:
   ai_backend_data:
+    driver: local
+  redis_data:
     driver: local

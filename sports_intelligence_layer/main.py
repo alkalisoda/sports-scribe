@@ -53,7 +53,7 @@ class SoccerIntelligenceLayer:
 
         logger.info("Soccer Intelligence Layer initialized successfully")
 
-    def process_query(self, query: str) -> Dict[str, Any]:
+    async def process_query(self, query: str) -> Dict[str, Any]:
         """
         Process a natural language soccer query through the complete pipeline.
 
@@ -75,7 +75,7 @@ class SoccerIntelligenceLayer:
 
             # Step 2: Execute the query against the database
             logger.info("Step 2: Executing database query...")
-            result = self.database.run_from_parsed(parsed_query)
+            result = await self.database.run_from_parsed(parsed_query)
             logger.info("✓ Database query executed successfully")
 
             # Step 3: Format the response
@@ -144,7 +144,7 @@ class SoccerIntelligenceLayer:
 
         return datetime.utcnow().isoformat()
 
-    def test_end_to_end(self) -> None:
+    async def test_end_to_end(self) -> None:
         """
         Run a comprehensive test of the end-to-end pipeline.
         """
@@ -165,7 +165,7 @@ class SoccerIntelligenceLayer:
             logger.info(f"Query: {query}")
 
             try:
-                result = self.process_query(query)
+                result = await self.process_query(query)
                 results.append(
                     {
                         "test_number": i,
@@ -207,7 +207,7 @@ class SoccerIntelligenceLayer:
         return results
 
 
-def main() -> None:
+async def main() -> None:
     """
     Main function to demonstrate the end-to-end functionality.
     """
@@ -217,12 +217,12 @@ def main() -> None:
         sil = SoccerIntelligenceLayer()
 
         # Run end-to-end tests
-        sil.test_end_to_end()
+        await sil.test_end_to_end()
 
         # Example of processing a single query
         logger.info("\n=== SINGLE QUERY EXAMPLE ===")
         example_query = "How many goals has Kaoru Mitoma scored this season?"
-        result = sil.process_query(example_query)
+        result = await sil.process_query(example_query)
 
         logger.info(f"Query: {example_query}")
         logger.info(f"Result: {result}")
@@ -235,4 +235,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())

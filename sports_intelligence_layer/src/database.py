@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 from functools import lru_cache
 from supabase import create_client, Client
+from .query_cache import query_cache
 
 from config.soccer_entities import (
     Player,
@@ -50,13 +51,49 @@ class SoccerDatabase:
     def __init__(self, supabase_url: str, supabase_key: str):
         """Initialize database connection and cache."""
         self.supabase: Client = create_client(supabase_url, supabase_key)
+        self.query_cache = query_cache.create_query_cache()
+        # In-memory LRU-like cache for players and teams
+        self._player_cache: Dict[str, Player] = {}
+        self._team_cache: Dict[str, Team] = {}
+        self._cache_max_size = 1000
 
     # ---------- Basic entity getters (cached) ----------
 
-    @lru_cache(maxsize=1000)
-    def get_player(self, player_id: str) -> Optional[Player]:
-        """Get player by ID with caching (sync)."""
+    async def get_player(self, player_id: str) -> Optional[Player]:
+        """Get player by ID with layered caching: LRU -> Redis -> Database."""
+        
+        # Layer 1: Check in-memory cache first (fastest)
+        if player_id in self._player_cache:
+            logger.debug(f"🚀 LRU cache HIT for player {player_id}")
+            return self._player_cache[player_id]
+        
+        logger.debug(f"⚠️  LRU cache MISS for player {player_id}")
+        
+        # Layer 2: Check Redis cache
+        query = "get_player"
+        params = {
+            "player_id": player_id,
+            "table": "players",
+            "operation": "single_select"
+        }
+        
         try:
+            cached_result = await self.query_cache.get_cached_result(query, params)
+            if cached_result:
+                logger.debug(f"⚡ Redis cache HIT for player {player_id}")
+                player = self._convert_to_player(cached_result) if cached_result else None
+                if player:
+                    # Store in LRU cache for next time
+                    self._store_in_player_cache(player_id, player)
+                return player
+            
+            logger.debug(f"⚠️  Redis cache MISS for player {player_id}")
+        except Exception as e:
+            logger.warning(f"Redis cache lookup failed for player {player_id}: {e}")
+
+        # Layer 3: Database lookup (slowest)
+        try:
+            logger.debug(f"🗄️  Database lookup for player {player_id}")
             resp = (
                 self.supabase.table("players")
                 .select("*")
@@ -65,17 +102,66 @@ class SoccerDatabase:
                 .execute()
             )
             data = resp.data
+            
             if not data:
+                # Cache the "not found" result too
+                try:
+                    await self.query_cache.cache_result(query, params, None, ttl=300)
+                except Exception:
+                    pass  # Don't fail if cache store fails
                 return None
-            return self._convert_to_player(data)
+            
+            player = self._convert_to_player(data)
+            
+            # Store in both caches
+            self._store_in_player_cache(player_id, player)
+            try:
+                await self.query_cache.cache_result(query, params, data, ttl=3600)
+                logger.debug(f"✅ Cached player data in Redis for {player_id}")
+            except Exception as e:
+                logger.warning(f"Failed to cache player in Redis: {e}")
+            
+            return player
+            
         except Exception as e:
             logger.exception("Error fetching player %s", player_id)
             raise DatabaseError(f"Failed to fetch player: {e}")
 
-    @lru_cache(maxsize=1000)
-    def get_team(self, team_id: str) -> Optional[Team]:
-        """Get team by ID with caching (sync)."""
+    async def get_team(self, team_id: str) -> Optional[Team]:
+        """Get team by ID with layered caching: LRU -> Redis -> Database."""
+        
+        # Layer 1: Check in-memory cache first (fastest)
+        if team_id in self._team_cache:
+            logger.debug(f"🚀 LRU cache HIT for team {team_id}")
+            return self._team_cache[team_id]
+        
+        logger.debug(f"⚠️  LRU cache MISS for team {team_id}")
+        
+        # Layer 2: Check Redis cache
+        query = "get_team"
+        params = {
+            "team_id": team_id,
+            "table": "teams",
+            "operation": "single_select"
+        }
+        
         try:
+            cached_result = await self.query_cache.get_cached_result(query, params)
+            if cached_result:
+                logger.debug(f"⚡ Redis cache HIT for team {team_id}")
+                team = self._convert_to_team(cached_result) if cached_result else None
+                if team:
+                    # Store in LRU cache for next time
+                    self._store_in_team_cache(team_id, team)
+                return team
+            
+            logger.debug(f"⚠️  Redis cache MISS for team {team_id}")
+        except Exception as e:
+            logger.warning(f"Redis cache lookup failed for team {team_id}: {e}")
+
+        # Layer 3: Database lookup (slowest)
+        try:
+            logger.debug(f"🗄️  Database lookup for team {team_id}")
             resp = (
                 self.supabase.table("teams")
                 .select("*")
@@ -84,9 +170,27 @@ class SoccerDatabase:
                 .execute()
             )
             data = resp.data
+            
             if not data:
+                # Cache the "not found" result too
+                try:
+                    await self.query_cache.cache_result(query, params, None, ttl=300)
+                except Exception:
+                    pass  # Don't fail if cache store fails
                 return None
-            return self._convert_to_team(data)
+            
+            team = self._convert_to_team(data)
+            
+            # Store in both caches
+            self._store_in_team_cache(team_id, team)
+            try:
+                await self.query_cache.cache_result(query, params, data, ttl=3600)
+                logger.debug(f"✅ Cached team data in Redis for {team_id}")
+            except Exception as e:
+                logger.warning(f"Failed to cache team in Redis: {e}")
+            
+            return team
+            
         except Exception as e:
             logger.exception("Error fetching team %s", team_id)
             raise DatabaseError(f"Failed to fetch team: {e}")
@@ -246,7 +350,7 @@ class SoccerDatabase:
 
     # ---------- Convenience: run from ParsedSoccerQuery ----------
 
-    def run_from_parsed(
+    async def run_from_parsed(
         self,
         parsed: Any,  # ParsedSoccerQuery
         player_name_to_id: Optional[Dict[str, str]] = None,
@@ -256,6 +360,28 @@ class SoccerDatabase:
         Execute a minimal, happy-path query directly from a ParsedSoccerQuery.
         Scope: single player stat lookup (goals/assists/minutes_played), with season & venue & last N support.
         """
+        # Generate cache parameters first
+        cache_query = "parsed"
+        cache_params = {
+            "query_intent": parsed.query_intent,
+            "entities": [{"name": e.name, "type": e.entity_type.value} for e in parsed.entities],
+            "statistic_requested": parsed.statistic_requested,
+            "time_context": parsed.time_context.value,
+            "filters": parsed.filters,
+            "default_season_label": default_season_label,
+        }
+        
+        # Try to get from cache first
+        try:
+            cached_result = await self.query_cache.get_cached_result(cache_query, cache_params)
+            if cached_result:
+                logger.info(f"🎯 Cache HIT for parsed query: {parsed.original_query[:50]}...")
+                return cached_result
+            
+            logger.info(f"⚠️  Cache MISS for parsed query: {parsed.original_query[:50]}...")
+        except Exception as e:
+            logger.warning(f"Cache lookup failed, proceeding without cache: {e}")
+        
         try:
             # 1) pick a player entity
             player_name = None
@@ -321,7 +447,8 @@ class SoccerDatabase:
                 last_n=last_n,
             )
 
-            return {
+            # Prepare the final response
+            final_response = {
                 "entity": {"type": "player", "id": pid, "name": player_name},
                 "stat": stat,
                 "result": result,
@@ -330,9 +457,40 @@ class SoccerDatabase:
                     "confidence": parsed.confidence,
                 },
             }
+            
+            # Cache the result using QueryCache's built-in TTL logic
+            try:
+                await self.query_cache.cache_result(cache_query, cache_params, final_response)
+                logger.info(f"✅ Cached result for query: {parsed.original_query[:50]}...")
+            except Exception as e:
+                logger.warning(f"Failed to cache result, but continuing: {e}")
+
+            return final_response
         except Exception as e:
             logger.exception("run_from_parsed failed")
             return {"status": "db_error", "message": str(e)}
+
+    # ---------- Cache management helpers ----------
+    
+    def _store_in_player_cache(self, player_id: str, player: Player) -> None:
+        """Store player in in-memory cache with simple LRU eviction."""
+        if len(self._player_cache) >= self._cache_max_size:
+            # Simple eviction: remove oldest entry
+            oldest_key = next(iter(self._player_cache))
+            del self._player_cache[oldest_key]
+        
+        self._player_cache[player_id] = player
+        logger.debug(f"✅ Stored player {player_id} in LRU cache")
+    
+    def _store_in_team_cache(self, team_id: str, team: Team) -> None:
+        """Store team in in-memory cache with simple LRU eviction."""
+        if len(self._team_cache) >= self._cache_max_size:
+            # Simple eviction: remove oldest entry
+            oldest_key = next(iter(self._team_cache))
+            del self._team_cache[oldest_key]
+        
+        self._team_cache[team_id] = team
+        logger.debug(f"✅ Stored team {team_id} in LRU cache")
 
     # ---------- Converters & aggregators ----------
 
