@@ -5,7 +5,7 @@ Demonstrates the complete end-to-end flow: Query → Parse → SQL → Results
 
 import os
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
 
 from src.query_parser import SoccerQueryParser, ParsedSoccerQuery
@@ -52,6 +52,29 @@ class SoccerIntelligenceLayer:
         self.database = SoccerDatabase(self.supabase_url, self.supabase_key)
 
         logger.info("Soccer Intelligence Layer initialized successfully")
+
+    async def close(self) -> None:
+        """
+        Close all connections and clean up resources.
+
+        This should be called before application exit to ensure:
+        - All database connections are properly closed
+        - Cache connections are flushed and closed
+        - Resources are freed
+        """
+        try:
+            await self.database.close()
+            logger.info("✅ Soccer Intelligence Layer cleanup completed")
+        except Exception as e:
+            logger.error(f"❌ Error during cleanup: {e}")
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit with automatic cleanup."""
+        await self.close()
 
     async def process_query(self, query: str) -> Dict[str, Any]:
         """
@@ -144,7 +167,7 @@ class SoccerIntelligenceLayer:
 
         return datetime.utcnow().isoformat()
 
-    async def test_end_to_end(self) -> None:
+    async def test_end_to_end(self) -> List[Dict[str, Any]]:
         """
         Run a comprehensive test of the end-to-end pipeline.
         """
@@ -202,7 +225,7 @@ class SoccerIntelligenceLayer:
         logger.info(f"Total tests: {total_tests}")
         logger.info(f"Successful: {successful_tests}")
         logger.info(f"Failed: {total_tests - successful_tests}")
-        logger.info(f"Success rate: {(successful_tests/total_tests)*100:.1f}%")
+        logger.info(f"Success rate: {(successful_tests / total_tests) * 100:.1f}%")
 
         return results
 
@@ -210,22 +233,27 @@ class SoccerIntelligenceLayer:
 async def main() -> None:
     """
     Main function to demonstrate the end-to-end functionality.
+
+    Uses proper resource management with context managers to ensure
+    all connections are properly closed before exit.
     """
     try:
-        # Initialize the Soccer Intelligence Layer
+        # Initialize the Soccer Intelligence Layer with proper cleanup
         logger.info("Initializing Soccer Intelligence Layer...")
-        sil = SoccerIntelligenceLayer()
+        async with SoccerIntelligenceLayer() as sil:
+            # Run end-to-end tests
+            await sil.test_end_to_end()
 
-        # Run end-to-end tests
-        await sil.test_end_to_end()
+            # Example of processing a single query
+            logger.info("\n=== SINGLE QUERY EXAMPLE ===")
+            example_query = "How many goals has Kaoru Mitoma scored this season?"
+            result = await sil.process_query(example_query)
 
-        # Example of processing a single query
-        logger.info("\n=== SINGLE QUERY EXAMPLE ===")
-        example_query = "How many goals has Kaoru Mitoma scored this season?"
-        result = await sil.process_query(example_query)
+            logger.info(f"Query: {example_query}")
+            logger.info(f"Result: {result}")
 
-        logger.info(f"Query: {example_query}")
-        logger.info(f"Result: {result}")
+        # Context manager automatically calls close() here
+        logger.info("✅ All resources cleaned up successfully")
 
     except Exception as e:
         logger.error(f"Failed to initialize or run tests: {e}")
@@ -236,4 +264,5 @@ async def main() -> None:
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())

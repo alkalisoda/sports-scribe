@@ -13,7 +13,7 @@ from functools import lru_cache
 from supabase import create_client, Client
 from .query_cache import query_cache
 
-from config.soccer_entities import (
+from ..config.soccer_entities import (
     Player,
     Team,
     Competition,
@@ -51,7 +51,9 @@ class SoccerDatabase:
     def __init__(self, supabase_url: str, supabase_key: str):
         """Initialize database connection and cache."""
         self.supabase: Client = create_client(supabase_url, supabase_key)
-        self.query_cache = query_cache.create_query_cache()
+        self.query_cache: Optional[query_cache.QueryCache] = (
+            query_cache.create_query_cache()
+        )
         # In-memory LRU-like cache for players and teams
         self._player_cache: Dict[str, Player] = {}
         self._team_cache: Dict[str, Team] = {}
@@ -61,32 +63,38 @@ class SoccerDatabase:
 
     async def get_player(self, player_id: str) -> Optional[Player]:
         """Get player by ID with layered caching: LRU -> Redis -> Database."""
-        
+
         # Layer 1: Check in-memory cache first (fastest)
         if player_id in self._player_cache:
             logger.debug(f"🚀 LRU cache HIT for player {player_id}")
             return self._player_cache[player_id]
-        
+
         logger.debug(f"⚠️  LRU cache MISS for player {player_id}")
-        
+
         # Layer 2: Check Redis cache
         query = "get_player"
         params = {
             "player_id": player_id,
             "table": "players",
-            "operation": "single_select"
+            "operation": "single_select",
         }
-        
+
         try:
-            cached_result = await self.query_cache.get_cached_result(query, params)
+            cached_result = (
+                await self.query_cache.get_cached_result(query, params)
+                if self.query_cache
+                else None
+            )
             if cached_result:
                 logger.debug(f"⚡ Redis cache HIT for player {player_id}")
-                player = self._convert_to_player(cached_result) if cached_result else None
+                player = (
+                    self._convert_to_player(cached_result) if cached_result else None
+                )
                 if player:
                     # Store in LRU cache for next time
                     self._store_in_player_cache(player_id, player)
                 return player
-            
+
             logger.debug(f"⚠️  Redis cache MISS for player {player_id}")
         except Exception as e:
             logger.warning(f"Redis cache lookup failed for player {player_id}: {e}")
@@ -102,51 +110,53 @@ class SoccerDatabase:
                 .execute()
             )
             data = resp.data
-            
+
             if not data:
                 # Cache the "not found" result too
                 try:
-                    await self.query_cache.cache_result(query, params, None, ttl=300)
+                    if self.query_cache:
+                        await self.query_cache.cache_result(query, params, {}, ttl=300)
                 except Exception:
                     pass  # Don't fail if cache store fails
                 return None
-            
+
             player = self._convert_to_player(data)
-            
+
             # Store in both caches
             self._store_in_player_cache(player_id, player)
             try:
-                await self.query_cache.cache_result(query, params, data, ttl=3600)
+                if self.query_cache:
+                    await self.query_cache.cache_result(query, params, data, ttl=3600)
                 logger.debug(f"✅ Cached player data in Redis for {player_id}")
             except Exception as e:
                 logger.warning(f"Failed to cache player in Redis: {e}")
-            
+
             return player
-            
+
         except Exception as e:
             logger.exception("Error fetching player %s", player_id)
             raise DatabaseError(f"Failed to fetch player: {e}")
 
     async def get_team(self, team_id: str) -> Optional[Team]:
         """Get team by ID with layered caching: LRU -> Redis -> Database."""
-        
+
         # Layer 1: Check in-memory cache first (fastest)
         if team_id in self._team_cache:
             logger.debug(f"🚀 LRU cache HIT for team {team_id}")
             return self._team_cache[team_id]
-        
+
         logger.debug(f"⚠️  LRU cache MISS for team {team_id}")
-        
+
         # Layer 2: Check Redis cache
         query = "get_team"
-        params = {
-            "team_id": team_id,
-            "table": "teams",
-            "operation": "single_select"
-        }
-        
+        params = {"team_id": team_id, "table": "teams", "operation": "single_select"}
+
         try:
-            cached_result = await self.query_cache.get_cached_result(query, params)
+            cached_result = (
+                await self.query_cache.get_cached_result(query, params)
+                if self.query_cache
+                else None
+            )
             if cached_result:
                 logger.debug(f"⚡ Redis cache HIT for team {team_id}")
                 team = self._convert_to_team(cached_result) if cached_result else None
@@ -154,7 +164,7 @@ class SoccerDatabase:
                     # Store in LRU cache for next time
                     self._store_in_team_cache(team_id, team)
                 return team
-            
+
             logger.debug(f"⚠️  Redis cache MISS for team {team_id}")
         except Exception as e:
             logger.warning(f"Redis cache lookup failed for team {team_id}: {e}")
@@ -170,27 +180,29 @@ class SoccerDatabase:
                 .execute()
             )
             data = resp.data
-            
+
             if not data:
                 # Cache the "not found" result too
                 try:
-                    await self.query_cache.cache_result(query, params, None, ttl=300)
+                    if self.query_cache:
+                        await self.query_cache.cache_result(query, params, {}, ttl=300)
                 except Exception:
                     pass  # Don't fail if cache store fails
                 return None
-            
+
             team = self._convert_to_team(data)
-            
+
             # Store in both caches
             self._store_in_team_cache(team_id, team)
             try:
-                await self.query_cache.cache_result(query, params, data, ttl=3600)
+                if self.query_cache:
+                    await self.query_cache.cache_result(query, params, data, ttl=3600)
                 logger.debug(f"✅ Cached team data in Redis for {team_id}")
             except Exception as e:
                 logger.warning(f"Failed to cache team in Redis: {e}")
-            
+
             return team
-            
+
         except Exception as e:
             logger.exception("Error fetching team %s", team_id)
             raise DatabaseError(f"Failed to fetch team: {e}")
@@ -360,28 +372,30 @@ class SoccerDatabase:
         Execute a minimal, happy-path query directly from a ParsedSoccerQuery.
         Scope: single player stat lookup (goals/assists/minutes_played), with season & venue & last N support.
         """
-        # Generate cache parameters first
-        cache_query = "parsed"
-        cache_params = {
-            "query_intent": parsed.query_intent,
-            "entities": [{"name": e.name, "type": e.entity_type.value} for e in parsed.entities],
-            "statistic_requested": parsed.statistic_requested,
-            "time_context": parsed.time_context.value,
-            "filters": parsed.filters,
-            "default_season_label": default_season_label,
-        }
-        
+        # Generate optimized cache parameters - only include essential query components
+        cache_query = "parsed_query"
+        cache_params = self._generate_cache_key(parsed, default_season_label)
+
         # Try to get from cache first
         try:
-            cached_result = await self.query_cache.get_cached_result(cache_query, cache_params)
+            if self.query_cache:
+                cached_result = await self.query_cache.get_cached_result(
+                    cache_query, cache_params
+                )
+            else:
+                cached_result = None
             if cached_result:
-                logger.info(f"🎯 Cache HIT for parsed query: {parsed.original_query[:50]}...")
+                logger.info(
+                    f"🎯 Cache HIT for parsed query: {parsed.original_query[:50]}..."
+                )
                 return cached_result
-            
-            logger.info(f"⚠️  Cache MISS for parsed query: {parsed.original_query[:50]}...")
+
+            logger.info(
+                f"⚠️  Cache MISS for parsed query: {parsed.original_query[:50]}..."
+            )
         except Exception as e:
             logger.warning(f"Cache lookup failed, proceeding without cache: {e}")
-        
+
         try:
             # 1) pick a player entity
             player_name = None
@@ -457,11 +471,16 @@ class SoccerDatabase:
                     "confidence": parsed.confidence,
                 },
             }
-            
+
             # Cache the result using QueryCache's built-in TTL logic
             try:
-                await self.query_cache.cache_result(cache_query, cache_params, final_response)
-                logger.info(f"✅ Cached result for query: {parsed.original_query[:50]}...")
+                if self.query_cache:
+                    await self.query_cache.cache_result(
+                        cache_query, cache_params, final_response
+                    )
+                logger.info(
+                    f"✅ Cached result for query: {parsed.original_query[:50]}..."
+                )
             except Exception as e:
                 logger.warning(f"Failed to cache result, but continuing: {e}")
 
@@ -471,26 +490,153 @@ class SoccerDatabase:
             return {"status": "db_error", "message": str(e)}
 
     # ---------- Cache management helpers ----------
-    
+
     def _store_in_player_cache(self, player_id: str, player: Player) -> None:
         """Store player in in-memory cache with simple LRU eviction."""
         if len(self._player_cache) >= self._cache_max_size:
             # Simple eviction: remove oldest entry
             oldest_key = next(iter(self._player_cache))
             del self._player_cache[oldest_key]
-        
+
         self._player_cache[player_id] = player
         logger.debug(f"✅ Stored player {player_id} in LRU cache")
-    
+
     def _store_in_team_cache(self, team_id: str, team: Team) -> None:
         """Store team in in-memory cache with simple LRU eviction."""
         if len(self._team_cache) >= self._cache_max_size:
             # Simple eviction: remove oldest entry
             oldest_key = next(iter(self._team_cache))
             del self._team_cache[oldest_key]
-        
+
         self._team_cache[team_id] = team
         logger.debug(f"✅ Stored team {team_id} in LRU cache")
+
+    def _generate_cache_key(self, parsed, default_season_label: str) -> Dict[str, Any]:
+        """
+        Generate an optimized cache key for parsed queries.
+
+        This method creates a targeted cache key that focuses on essential
+        query components, reducing cache key size and improving hit rates.
+
+        Based on Codacy's optimization suggestion - only includes data
+        that actually affects query results.
+
+        Args:
+            parsed: ParsedSoccerQuery object
+            default_season_label: Default season label to use
+
+        Returns:
+            Optimized cache parameters dictionary
+        """
+        # Extract only player entities (most common case)
+        player_names = sorted(
+            [
+                e.name.lower().strip()
+                for e in parsed.entities
+                if hasattr(e, "entity_type") and e.entity_type.value == "player"
+            ]
+        )
+
+        # Extract only team entities if no players found
+        if not player_names:
+            team_names = sorted(
+                [
+                    e.name.lower().strip()
+                    for e in parsed.entities
+                    if hasattr(e, "entity_type") and e.entity_type.value == "team"
+                ]
+            )
+        else:
+            team_names = []
+
+        # Extract essential filters only
+        filters = {}
+        if isinstance(parsed.filters, dict):
+            # Only include filters that affect query results
+            essential_filter_keys = ["venue", "last_n", "competition", "opponent"]
+            for key in essential_filter_keys:
+                if key in parsed.filters and parsed.filters[key] is not None:
+                    filters[key] = parsed.filters[key]
+
+        # Determine season context
+        season_context = None
+        if parsed.time_context.value in ["this_season", "current_season"]:
+            season_context = default_season_label
+        elif parsed.time_context.value in ["last_season", "previous_season"]:
+            # Calculate previous season
+            try:
+                year_parts = default_season_label.split("-")
+                if len(year_parts) == 2:
+                    start_year = int(year_parts[0]) - 1
+                    end_year = int(year_parts[1]) - 1
+                    season_context = f"{start_year}-{end_year:02d}"
+                else:
+                    season_context = "previous"
+            except (ValueError, IndexError):
+                season_context = "previous"
+        elif "season" in parsed.time_context.value:
+            season_context = parsed.time_context.value
+
+        # Build optimized cache key
+        cache_params = {
+            "intent": parsed.query_intent,
+            "stat": parsed.statistic_requested,
+            "time": parsed.time_context.value,
+            "season": season_context,
+        }
+
+        # Add entity identifiers (normalized)
+        if player_names:
+            cache_params["players"] = player_names
+        elif team_names:
+            cache_params["teams"] = team_names
+
+        # Add essential filters only if present
+        if filters:
+            cache_params["filters"] = filters
+
+        # Add comparison type if present
+        if parsed.comparison_type:
+            cache_params["comparison"] = parsed.comparison_type.value
+
+        logger.debug(f"🔑 Generated optimized cache key: {cache_params}")
+        return cache_params
+
+    async def close(self) -> None:
+        """
+        Close all database connections and clean up resources.
+
+        This method ensures proper cleanup of:
+        - Redis cache connections
+        - Connection pools
+        - In-memory caches
+        """
+        try:
+            # Close Redis cache connection
+            if self.query_cache:
+                await self.query_cache.close()
+                logger.info("✅ Redis cache connection closed")
+
+            # Clear in-memory caches
+            self._player_cache.clear()
+            self._team_cache.clear()
+            logger.info("✅ In-memory caches cleared")
+
+            # Note: Supabase client doesn't have explicit close method
+            # but connections will be cleaned up when object is garbage collected
+
+            logger.info("✅ SoccerDatabase cleanup completed")
+
+        except Exception as e:
+            logger.error(f"❌ Error during database cleanup: {e}")
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit with automatic cleanup."""
+        await self.close()
 
     # ---------- Converters & aggregators ----------
 
