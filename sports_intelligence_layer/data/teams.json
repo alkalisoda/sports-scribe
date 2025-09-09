@@ -1,79 +1,267 @@
 {
-  "arsenal": ["arsenal", "gunners", "arsenal fc"],
-  "liverpool": ["liverpool", "reds", "liverpool fc"],
-  "real madrid": ["real madrid", "madrid", "el clasico"],
-  "barcelona": ["barcelona", "barca", "el clasico"],
-  "manchester city": ["manchester city", "man city", "city"],
-  "manchester united": ["manchester united", "man utd", "united"],
-  "chelsea": ["chelsea"],
-  "bayern munich": ["bayern munich", "bayern"],
-  "juventus": ["juventus", "juve"],
-  "psg": ["psg", "paris saint-germain", "paris"],
-  "tottenham": ["tottenham", "spurs", "tottenham hotspur"],
-  "everton": ["everton", "toffees"],
-  "ac milan": ["ac milan", "milan"],
-  "inter milan": ["inter milan", "inter"],
-  "atletico madrid": ["atletico madrid", "atletico", "atleti"],
-  "borussia dortmund": ["borussia dortmund", "dortmund", "bvb"],
-  "napoli": ["napoli", "partenopei"],
-  "as roma": ["roma", "as roma", "giallorossi"],
-  "lazio": ["lazio", "biancocelesti"],
-  "atalanta": ["atalanta"],
-  "leicester city": ["leicester", "leicester city", "foxes"],
-  "west ham": ["west ham", "hammers", "west ham united"],
-  "newcastle": ["newcastle", "magpies", "newcastle united"],
-  "aston villa": ["aston villa", "villa"],
-  "brighton": ["brighton", "seagulls", "brighton & hove albion"],
-  "crystal palace": ["crystal palace", "palace", "eagles"],
-  "wolves": ["wolves", "wolverhampton"],
-  "leeds united": ["leeds", "leeds united", "whites"],
-  "sevilla": ["sevilla", "sevilla fc"],
-  "villarreal": ["villarreal"],
-  "real sociedad": ["real sociedad", "sociedad"],
-  "valencia": ["valencia", "valencia cf"],
-  "athletic bilbao": ["athletic bilbao", "bilbao", "athletic"],
-  "rb leipzig": ["rb leipzig", "leipzig"],
-  "bayer leverkusen": ["bayer leverkusen", "leverkusen"],
-  "eintracht frankfurt": ["eintracht frankfurt", "frankfurt"],
-  "vfl wolfsburg": ["wolfsburg"],
-  "borussia monchengladbach": ["monchengladbach", "gladbach"],
-  "fiorentina": ["fiorentina", "viola"],
-  "torino": ["torino"],
-  "udinese": ["udinese"],
-  "sassuolo": ["sassuolo"],
-  "ajax": ["ajax", "ajax amsterdam"],
-  "psv": ["psv", "psv eindhoven"],
-  "feyenoord": ["feyenoord"],
-  "porto": ["porto", "fc porto"],
-  "benfica": ["benfica", "sl benfica"],
-  "sporting cp": ["sporting", "sporting cp", "sporting lisbon"],
-  "olympiakos": ["olympiakos"],
-  "galatasaray": ["galatasaray"],
-  "fenerbahce": ["fenerbahce"],
-  "besiktas": ["besiktas"],
-  "celtic": ["celtic", "bhoys"],
-  "rangers": ["rangers", "gers"],
-  "shakhtar donetsk": ["shakhtar", "shakhtar donetsk"],
-  "dynamo kyiv": ["dynamo kyiv", "dynamo kiev"],
-  "rb salzburg": ["salzburg", "rb salzburg"],
-  "club brugge": ["club brugge", "brugge"],
-  "lyon": ["lyon", "ol", "olympique lyonnais"],
-  "marseille": ["marseille", "om", "olympique marseille"],
-  "monaco": ["monaco", "as monaco"],
-  "lille": ["lille", "losc"],
-  "nice": ["nice", "ogc nice"],
-  "rennes": ["rennes", "stade rennais"],
-  "strasbourg": ["strasbourg"],
-  "montpellier": ["montpellier"],
-  "brentford": ["brentford", "bees"],
-  "fulham": ["fulham", "cottagers"],
-  "bournemouth": ["bournemouth", "cherries"],
-  "nottingham forest": ["nottingham forest", "forest"],
-  "southampton": ["southampton", "saints"],
-  "burnley": ["burnley", "clarets"],
-  "watford": ["watford", "hornets"],
-  "norwich": ["norwich", "canaries", "norwich city"],
-  "cardiff city": ["cardiff", "cardiff city", "bluebirds"],
-  "swansea city": ["swansea", "swans", "swansea city"]
+  "arsenal": [
+    "arsenal",
+    "arsenal fc",
+    "gunners"
+  ],
+  "liverpool": [
+    "liverpool",
+    "liverpool fc",
+    "reds"
+  ],
+  "real madrid": [
+    "el clasico",
+    "los blancos",
+    "madrid",
+    "real madrid"
+  ],
+  "barcelona": [
+    "barca",
+    "barcelona",
+    "el clasico",
+    "fcb"
+  ],
+  "manchester city": [
+    "citizens",
+    "city",
+    "man city",
+    "manchester city"
+  ],
+  "manchester united": [
+    "man utd",
+    "manchester united",
+    "red devils",
+    "united"
+  ],
+  "chelsea": [
+    "blues",
+    "cfc",
+    "chelsea"
+  ],
+  "bayern munich": [
+    "bayern",
+    "bayern munich",
+    "fcbayern"
+  ],
+  "juventus": [
+    "juve",
+    "juventus",
+    "old lady"
+  ],
+  "psg": [
+    "paris",
+    "paris saint-germain",
+    "psg"
+  ],
+  "tottenham": [
+    "spurs",
+    "tottenham",
+    "tottenham hotspur"
+  ],
+  "everton": [
+    "everton",
+    "toffees"
+  ],
+  "ac milan": [
+    "ac milan",
+    "milan"
+  ],
+  "inter milan": [
+    "fc internazionale",
+    "inter",
+    "inter milan",
+    "internazionale"
+  ],
+  "tottenham hotspur": [
+    "spurs",
+    "tottenham",
+    "tottenham hotspur"
+  ],
+  "newcastle united": [
+    "magpies",
+    "newcastle",
+    "newcastle united"
+  ],
+  "aston villa": [
+    "aston villa",
+    "villa"
+  ],
+  "west ham united": [
+    "hammers",
+    "west ham",
+    "west ham united"
+  ],
+  "brighton & hove albion": [
+    "bha",
+    "brighton",
+    "brighton & hove albion"
+  ],
+  "leicester city": [
+    "foxes",
+    "leicester",
+    "leicester city"
+  ],
+  "nottingham forest": [
+    "forest",
+    "nottingham forest",
+    "nottm forest"
+  ],
+  "crystal palace": [
+    "crystal palace",
+    "eagles",
+    "palace"
+  ],
+  "brentford": [
+    "bees",
+    "brentford"
+  ],
+  "bournemouth": [
+    "afc bournemouth",
+    "bournemouth",
+    "cherries"
+  ],
+  "wolves": [
+    "wolverhampton",
+    "wolverhampton wanderers",
+    "wolves"
+  ],
+  "fulham": [
+    "cottagers",
+    "ffc",
+    "fulham"
+  ],
+  "ipswich town": [
+    "ipswich",
+    "ipswich town",
+    "tractor boys"
+  ],
+  "southampton": [
+    "saints",
+    "southampton"
+  ],
+  "atletico madrid": [
+    "atleti",
+    "atletico madrid"
+  ],
+  "sevilla": [
+    "sevilla",
+    "sevilla fc"
+  ],
+  "real sociedad": [
+    "la real",
+    "real sociedad"
+  ],
+  "athletic bilbao": [
+    "athletic bilbao",
+    "athletic club"
+  ],
+  "valencia": [
+    "valencia",
+    "valencia cf"
+  ],
+  "villarreal": [
+    "submarino amarillo",
+    "villarreal"
+  ],
+  "real betis": [
+    "betis",
+    "real betis"
+  ],
+  "girona": [
+    "girona",
+    "girona fc"
+  ],
+  "napoli": [
+    "napoli",
+    "ssc napoli"
+  ],
+  "roma": [
+    "as roma",
+    "giallorossi",
+    "roma"
+  ],
+  "lazio": [
+    "biancocelesti",
+    "lazio",
+    "ss lazio"
+  ],
+  "atalanta": [
+    "atalanta",
+    "atalanta bc"
+  ],
+  "fiorentina": [
+    "acf fiorentina",
+    "fiorentina",
+    "viola"
+  ],
+  "torino": [
+    "torino",
+    "torino fc"
+  ],
+  "bologna": [
+    "bologna",
+    "bologna fc"
+  ],
+  "borussia dortmund": [
+    "borussia dortmund",
+    "bvb",
+    "dortmund"
+  ],
+  "rb leipzig": [
+    "leipzig",
+    "rb leipzig"
+  ],
+  "bayer leverkusen": [
+    "bayer leverkusen",
+    "leverkusen",
+    "werkself"
+  ],
+  "borussia monchengladbach": [
+    "borussia monchengladbach",
+    "borussia mönchengladbach",
+    "gladbach",
+    "monchengladbach"
+  ],
+  "eintracht frankfurt": [
+    "eintracht frankfurt",
+    "frankfurt"
+  ],
+  "vfb stuttgart": [
+    "stuttgart",
+    "vfb stuttgart"
+  ],
+  "wolfsburg": [
+    "vfl wolfsburg",
+    "wolfsburg"
+  ],
+  "freiburg": [
+    "freiburg",
+    "sc freiburg"
+  ],
+  "werder bremen": [
+    "bremen",
+    "werder bremen"
+  ],
+  "marseille": [
+    "marseille",
+    "olympique de marseille",
+    "om"
+  ],
+  "monaco": [
+    "as monaco",
+    "monaco"
+  ],
+  "lyon": [
+    "lyon",
+    "ol",
+    "olympique lyonnais"
+  ],
+  "lille": [
+    "lille",
+    "losc"
+  ],
+  "nice": [
+    "nice",
+    "ogc nice"
+  ]
 }
-

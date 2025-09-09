@@ -1,100 +1,1040 @@
 {
-  "erling haaland": ["haaland", "erling haaland", "erling"],
-  "lionel messi": ["messi", "lionel messi"],
-  "karim benzema": ["benzema", "karim benzema"],
-  "mohamed salah": ["salah", "mo salah", "mohamed salah"],
-  "kevin de bruyne": ["de bruyne", "kdb", "kevin de bruyne"],
-  "harry kane": ["kane", "harry kane"],
-  "cristiano ronaldo": ["ronaldo", "cristiano", "cristiano ronaldo", "cr7"],
-  "kylian mbappe": ["mbappe", "kylian mbappe", "mbappé"],
-  "robert lewandowski": ["lewandowski", "robert lewandowski", "lewa"],
-  "luka modric": ["modric", "luka modric"],
-  "neymar": ["neymar", "neymar jr"],
-  "virgil van dijk": ["van dijk", "virgil van dijk", "virgil"],
-  "sadio mane": ["mane", "sadio mane", "sadio"],
-  "joshua kimmich": ["kimmich", "joshua kimmich"],
-  "pedri": ["pedri", "pedri gonzalez"],
-  "gavi": ["gavi", "pablo gavi"],
-  "jude bellingham": ["bellingham", "jude bellingham"],
-  "phil foden": ["foden", "phil foden"],
-  "vinicius jr": ["vinicius", "vini jr", "vinicius junior"],
-  "jamal musiala": ["musiala", "jamal musiala"],
-  "bukayo saka": ["saka", "bukayo saka"],
-  "mason mount": ["mount", "mason mount"],
-  "bruno fernandes": ["bruno", "bruno fernandes"],
-  "casemiro": ["casemiro"],
-  "alisson becker": ["alisson", "alisson becker"],
-  "thibaut courtois": ["courtois", "thibaut courtois"],
-  "jan oblak": ["oblak", "jan oblak"],
-  "manuel neuer": ["neuer", "manuel neuer"],
-  "sergio ramos": ["ramos", "sergio ramos"],
-  "raphael varane": ["varane", "raphael varane"],
-  "son heung-min": ["son", "heung-min son", "sonny"],
-  "luis suarez": ["suarez", "luis suarez"],
-  "antoine griezmann": ["griezmann", "antoine griezmann"],
-  "paul pogba": ["pogba", "paul pogba"],
-  "ngolo kante": ["kante", "n'golo kante"],
-  "raheem sterling": ["sterling", "raheem sterling"],
-  "riyad mahrez": ["mahrez", "riyad mahrez"],
-  "jack grealish": ["grealish", "jack grealish"],
-  "joao felix": ["felix", "joao felix"],
-  "frenkie de jong": ["de jong", "frenkie de jong"],
-  "trent alexander-arnold": ["trent", "alexander-arnold", "taa"],
-  "andrew robertson": ["robertson", "andy robertson"],
-  "joao cancelo": ["cancelo", "joao cancelo"],
-  "reece james": ["reece james", "james"],
-  "mason greenwood": ["greenwood", "mason greenwood"],
-  "marcus rashford": ["rashford", "marcus rashford"],
-  "jadon sancho": ["sancho", "jadon sancho"],
-  "ciro immobile": ["immobile", "ciro immobile"],
-  "lorenzo insigne": ["insigne", "lorenzo insigne"],
-  "federico chiesa": ["chiesa", "federico chiesa"],
-  "nicolo barella": ["barella", "nicolo barella"],
-  "david silva": ["silva", "david silva"],
-  "bernardo silva": ["silva", "bernardo silva"],
-  "darwin nunez": ["nunez", "darwin nunez"],
-  "gabriel jesus": ["jesus", "gabriel jesus"],
-  "rafa leao": ["leao", "rafael leao"],
-  "ousmane dembele": ["dembele", "ousmane dembele"],
-  "martin odegaard": ["odegaard", "martin odegaard"],
-  "declan rice": ["rice", "declan rice"],
-  "rodri": ["rodri", "rodrigo hernandez"],
-  "lautaro martinez": ["lautaro", "lautaro martinez"],
-  "victor osimhen": ["osimhen", "victor osimhen"],
-  "khvicha kvaratskhelia": ["kvaratskhelia", "kvara"],
-  "aurelien tchouameni": ["tchouameni", "aurelien tchouameni"],
-  "enzo fernandez": ["enzo", "enzo fernandez"],
-  "rafael leao": ["leao", "rafael leao"],
-  "theo hernandez": ["theo hernandez", "theo"],
-  "achraf hakimi": ["hakimi", "achraf hakimi"],
-  "alessandro bastoni": ["bastoni", "alessandro bastoni"],
-  "josko gvardiol": ["gvardiol", "josko gvardiol"],
-  "ruben dias": ["dias", "ruben dias"],
-  "william saliba": ["saliba", "william saliba"],
-  "gabriel magalhaes": ["gabriel", "gabriel magalhaes"],
-  "eder militao": ["militao", "eder militao"],
-  "jules kounde": ["kounde", "jules kounde"],
-  "ronald araujo": ["araujo", "ronald araujo"],
-  "mike maignan": ["maignan", "mike maignan"],
-  "emiliano martinez": ["emi martinez", "emiliano martinez"],
-  "aaron ramsdale": ["ramsdale", "aaron ramsdale"],
-  "gianluigi donnarumma": ["donnarumma", "gianluigi donnarumma"],
-  "ederson": ["ederson"],
-  "ter stegen": ["ter stegen", "marc-andre ter stegen"],
-  "paulo dybala": ["dybala", "paulo dybala"],
-  "dusan vlahovic": ["vlahovic", "dusan vlahovic"],
-  "sergej milinkovic-savic": ["milinkovic-savic", "sms"],
-  "marco verratti": ["verratti", "marco verratti"],
-  "franck kessie": ["kessie", "franck kessie"],
-  "tyler adams": ["adams", "tyler adams"],
-  "yunus musah": ["musah", "yunus musah"],
-  "weston mckennie": ["mckennie", "weston mckennie"],
-  "christian pulisic": ["pulisic", "christian pulisic"],
-  "serge gnabry": ["gnabry", "serge gnabry"],
-  "leon goretzka": ["goretzka", "leon goretzka"],
-  "thomas muller": ["muller", "thomas muller"],
-  "kingsley coman": ["coman", "kingsley coman"],
-  "alphonso davies": ["davies", "alphonso davies"],
-  "dayot upamecano": ["upamecano", "dayot upamecano"],
-  "benjamin pavard": ["pavard", "benjamin pavard"]
+  "erling haaland": [
+    "EH",
+    "Erling",
+    "Erling Haaland",
+    "Haaland",
+    "eh",
+    "erling",
+    "erling haaland",
+    "haaland",
+    "robot"
+  ],
+  "lionel messi": [
+    "lionel messi",
+    "messi"
+  ],
+  "karim benzema": [
+    "benzema",
+    "karim benzema"
+  ],
+  "mohamed salah": [
+    "MS",
+    "Mohamed",
+    "Mohamed Salah",
+    "Salah",
+    "mo salah",
+    "mohamed salah",
+    "ms",
+    "salah"
+  ],
+  "kevin de bruyne": [
+    "Bruyne",
+    "KDB",
+    "Kevin",
+    "Kevin Bruyne",
+    "Kevin De Bruyne",
+    "de bruyne",
+    "kdb",
+    "kevin de bruyne"
+  ],
+  "harry kane": [
+    "harry kane",
+    "kane"
+  ],
+  "phil foden": [
+    "Foden",
+    "PF",
+    "Phil",
+    "Phil Foden",
+    "foden",
+    "pf",
+    "phil foden"
+  ],
+  "rodri": [
+    "Rodri",
+    "rodri"
+  ],
+  "julian alvarez": [
+    "Alvarez",
+    "JA",
+    "Julian",
+    "Julian Alvarez",
+    "alvarez",
+    "ja",
+    "julian alvarez",
+    "julián álvarez"
+  ],
+  "jack grealish": [
+    "Grealish",
+    "JG",
+    "Jack",
+    "Jack Grealish",
+    "grealish",
+    "jack grealish",
+    "jg"
+  ],
+  "bernardo silva": [
+    "BS",
+    "Bernardo",
+    "Bernardo Silva",
+    "b. silva",
+    "bernardo",
+    "bernardo silva",
+    "bs"
+  ],
+  "ruben dias": [
+    "Dias",
+    "RD",
+    "Ruben",
+    "Ruben Dias",
+    "dias",
+    "rd",
+    "ruben dias"
+  ],
+  "kyle walker": [
+    "KW",
+    "Kyle",
+    "Kyle Walker",
+    "Walker",
+    "kw",
+    "kyle walker",
+    "walker"
+  ],
+  "ederson": [
+    "Ederson",
+    "ederson"
+  ],
+  "bukayo saka": [
+    "BS",
+    "Bukayo",
+    "Bukayo Saka",
+    "Saka",
+    "bs",
+    "bukayo saka",
+    "saka",
+    "starboy"
+  ],
+  "martin odegaard": [
+    "MO",
+    "Martin",
+    "Martin Odegaard",
+    "Odegaard",
+    "martin odegaard",
+    "mo",
+    "odegaard",
+    "ödegaard"
+  ],
+  "kai havertz": [
+    "Havertz",
+    "KH",
+    "Kai",
+    "Kai Havertz",
+    "havertz",
+    "kai havertz",
+    "kh"
+  ],
+  "declan rice": [
+    "DR",
+    "Declan",
+    "Declan Rice",
+    "Rice",
+    "declan rice",
+    "dr",
+    "rice"
+  ],
+  "william saliba": [
+    "Saliba",
+    "WS",
+    "William",
+    "William Saliba",
+    "saliba",
+    "william saliba",
+    "ws"
+  ],
+  "gabriel jesus": [
+    "GJ",
+    "Gabriel",
+    "Gabriel Jesus",
+    "Jesus",
+    "gabriel jesus",
+    "gj",
+    "jesus"
+  ],
+  "gabriel martinelli": [
+    "GM",
+    "Gabriel",
+    "Gabriel Martinelli",
+    "Martinelli",
+    "gabriel martinelli",
+    "gm",
+    "martinelli"
+  ],
+  "ben white": [
+    "BW",
+    "Ben",
+    "Ben White",
+    "White",
+    "ben white",
+    "bw",
+    "white"
+  ],
+  "darwin nunez": [
+    "DN",
+    "Darwin",
+    "Darwin Nunez",
+    "Nunez",
+    "darwin",
+    "darwin nunez",
+    "dn",
+    "nunez",
+    "núñez"
+  ],
+  "luis diaz": [
+    "Diaz",
+    "LD",
+    "Luis",
+    "Luis Diaz",
+    "diaz",
+    "ld",
+    "luis diaz",
+    "luis díaz"
+  ],
+  "diogo jota": [
+    "DJ",
+    "Diogo",
+    "Diogo Jota",
+    "Jota",
+    "diogo jota",
+    "dj",
+    "jota"
+  ],
+  "dominik szoboszlai": [
+    "DS",
+    "Dominik",
+    "Dominik Szoboszlai",
+    "Szoboszlai",
+    "dominik szoboszlai",
+    "ds",
+    "szoboszlai"
+  ],
+  "alexis mac allister": [
+    "AMA",
+    "Alexis",
+    "Alexis Allister",
+    "Alexis Mac Allister",
+    "Allister",
+    "alexis mac allister",
+    "ama",
+    "mac allister",
+    "macca"
+  ],
+  "virgil van dijk": [
+    "Dijk",
+    "VVD",
+    "Virgil",
+    "Virgil Dijk",
+    "Virgil van Dijk",
+    "van dijk",
+    "virgil van dijk",
+    "vvd"
+  ],
+  "trent alexander-arnold": [
+    "Arnold",
+    "TAA",
+    "Trent",
+    "Trent Alexander-Arnold",
+    "Trent Arnold",
+    "alexander-arnold",
+    "taa",
+    "trent",
+    "trent alexander-arnold"
+  ],
+  "alisson": [
+    "Alisson",
+    "alisson",
+    "alisson becker"
+  ],
+  "bruno fernandes": [
+    "BF",
+    "Bruno",
+    "Bruno Fernandes",
+    "Fernandes",
+    "bf",
+    "bruno",
+    "bruno fernandes",
+    "fernandes"
+  ],
+  "marcus rashford": [
+    "MR",
+    "Marcus",
+    "Marcus Rashford",
+    "Rashford",
+    "marcus rashford",
+    "mr",
+    "rashford"
+  ],
+  "rasmus hojlund": [
+    "Hojlund",
+    "RH",
+    "Rasmus",
+    "Rasmus Hojlund",
+    "hojlund",
+    "højlund",
+    "rasmus hojlund",
+    "rh"
+  ],
+  "casemiro": [
+    "Casemiro",
+    "casemiro"
+  ],
+  "lisandro martinez": [
+    "LM",
+    "Lisandro",
+    "Lisandro Martinez",
+    "lisandro martinez",
+    "lm",
+    "martinez",
+    "martínez"
+  ],
+  "andre onana": [
+    "AO",
+    "Andre",
+    "Andre Onana",
+    "Onana",
+    "andre onana",
+    "ao",
+    "onana"
+  ],
+  "alejandro garnacho": [
+    "AG",
+    "Alejandro",
+    "Alejandro Garnacho",
+    "Garnacho",
+    "ag",
+    "alejandro garnacho",
+    "garnacho"
+  ],
+  "cole palmer": [
+    "CP",
+    "Cole",
+    "Cole Palmer",
+    "Palmer",
+    "cole palmer",
+    "cp",
+    "palmer"
+  ],
+  "enzo fernandez": [
+    "EF",
+    "Enzo",
+    "Enzo Fernandez",
+    "Fernandez",
+    "ef",
+    "enzo",
+    "enzo fernandez",
+    "fernandez",
+    "fernández"
+  ],
+  "raheem sterling": [
+    "RS",
+    "Raheem",
+    "Raheem Sterling",
+    "Sterling",
+    "raheem sterling",
+    "rs",
+    "sterling"
+  ],
+  "christopher nkunku": [
+    "CN",
+    "Christopher",
+    "Christopher Nkunku",
+    "Nkunku",
+    "christopher nkunku",
+    "cn",
+    "nkunku"
+  ],
+  "reece james": [
+    "RJ",
+    "Reece",
+    "Reece James",
+    "james",
+    "reece",
+    "reece james",
+    "rj"
+  ],
+  "mykhailo mudryk": [
+    "MM",
+    "Mudryk",
+    "Mykhailo",
+    "Mykhailo Mudryk",
+    "mm",
+    "mudryk",
+    "mykhailo mudryk"
+  ],
+  "nicolas jackson": [
+    "Jackson",
+    "NJ",
+    "Nicolas",
+    "Nicolas Jackson",
+    "jackson",
+    "nicolas jackson",
+    "nj"
+  ],
+  "son heung-min": [
+    "SHM",
+    "Son",
+    "Son Heung-min",
+    "Son min",
+    "heung-min",
+    "min",
+    "shm",
+    "son",
+    "son heung-min",
+    "sonny"
+  ],
+  "james maddison": [
+    "JM",
+    "James",
+    "James Maddison",
+    "Maddison",
+    "james maddison",
+    "jm",
+    "maddison"
+  ],
+  "dejan kulusevski": [
+    "DK",
+    "Dejan",
+    "Dejan Kulusevski",
+    "Kulusevski",
+    "dejan kulusevski",
+    "dk",
+    "kulusevski"
+  ],
+  "cristian romero": [
+    "CR",
+    "Cristian",
+    "Cristian Romero",
+    "Romero",
+    "cr",
+    "cristian romero",
+    "romero"
+  ],
+  "guglielmo vicario": [
+    "GV",
+    "Guglielmo",
+    "Guglielmo Vicario",
+    "Vicario",
+    "guglielmo vicario",
+    "gv",
+    "vicario"
+  ],
+  "richarlison": [
+    "Richarlison",
+    "richarlison"
+  ],
+  "jude bellingham": [
+    "Bellingham",
+    "JB",
+    "Jude",
+    "Jude Bellingham",
+    "bellingham",
+    "jb",
+    "jude",
+    "jude bellingham"
+  ],
+  "vinicius junior": [
+    "VJ",
+    "Vinicius",
+    "Vinicius Junior",
+    "vini",
+    "vini jr",
+    "vinicius",
+    "vinicius junior",
+    "vj"
+  ],
+  "rodrygo": [
+    "Rodrygo",
+    "rodrygo"
+  ],
+  "luka modric": [
+    "LM",
+    "Luka",
+    "Luka Modric",
+    "Modric",
+    "lm",
+    "luka modric",
+    "modric"
+  ],
+  "toni kroos": [
+    "Kroos",
+    "TK",
+    "Toni",
+    "Toni Kroos",
+    "kroos",
+    "tk",
+    "toni kroos"
+  ],
+  "aurelien tchouameni": [
+    "AT",
+    "Aurelien",
+    "Aurelien Tchouameni",
+    "Tchouameni",
+    "at",
+    "aurelien tchouameni",
+    "tchouameni"
+  ],
+  "eduardo camavinga": [
+    "Camavinga",
+    "EC",
+    "Eduardo",
+    "Eduardo Camavinga",
+    "camavinga",
+    "ec",
+    "eduardo camavinga"
+  ],
+  "thibaut courtois": [
+    "Courtois",
+    "TC",
+    "Thibaut",
+    "Thibaut Courtois",
+    "courtois",
+    "tc",
+    "thibaut courtois"
+  ],
+  "robert lewandowski": [
+    "Lewandowski",
+    "RL",
+    "Robert",
+    "Robert Lewandowski",
+    "lewa",
+    "lewandowski",
+    "rl",
+    "robert lewandowski"
+  ],
+  "pedri": [
+    "Pedri",
+    "pedri"
+  ],
+  "gavi": [
+    "Gavi",
+    "gavi"
+  ],
+  "raphinha": [
+    "Raphinha",
+    "raphinha"
+  ],
+  "marc-andre ter stegen": [
+    "MATS",
+    "Marc",
+    "Marc Stegen",
+    "Marc-Andre ter Stegen",
+    "Stegen",
+    "marc-andre ter stegen",
+    "mats",
+    "ter stegen"
+  ],
+  "ronald araujo": [
+    "Araujo",
+    "RA",
+    "Ronald",
+    "Ronald Araujo",
+    "araujo",
+    "ra",
+    "ronald araujo"
+  ],
+  "jamal musiala": [
+    "JM",
+    "Jamal",
+    "Jamal Musiala",
+    "Musiala",
+    "jamal musiala",
+    "jm",
+    "musiala"
+  ],
+  "leroy sane": [
+    "LS",
+    "Leroy",
+    "Leroy Sane",
+    "Sane",
+    "leroy sane",
+    "ls",
+    "sane",
+    "sané"
+  ],
+  "thomas muller": [
+    "Muller",
+    "TM",
+    "Thomas",
+    "Thomas Muller",
+    "muller",
+    "müller",
+    "thomas muller",
+    "tm"
+  ],
+  "joshua kimmich": [
+    "JK",
+    "Joshua",
+    "Joshua Kimmich",
+    "Kimmich",
+    "jk",
+    "joshua kimmich",
+    "kimmich"
+  ],
+  "manuel neuer": [
+    "MN",
+    "Manuel",
+    "Manuel Neuer",
+    "Neuer",
+    "manuel neuer",
+    "mn",
+    "neuer"
+  ],
+  "alphonso davies": [
+    "AD",
+    "Alphonso",
+    "Alphonso Davies",
+    "Davies",
+    "ad",
+    "alphonso davies",
+    "davies",
+    "phonso"
+  ],
+  "kingsley coman": [
+    "Coman",
+    "KC",
+    "Kingsley",
+    "Kingsley Coman",
+    "coman",
+    "kc",
+    "kingsley coman"
+  ],
+  "serge gnabry": [
+    "Gnabry",
+    "SG",
+    "Serge",
+    "Serge Gnabry",
+    "gnabry",
+    "serge gnabry",
+    "sg"
+  ],
+  "matthijs de ligt": [
+    "Ligt",
+    "MDL",
+    "Matthijs",
+    "Matthijs Ligt",
+    "Matthijs de Ligt",
+    "de ligt",
+    "matthijs de ligt",
+    "mdl"
+  ],
+  "kylian mbappe": [
+    "KM",
+    "Kylian",
+    "Kylian Mbappe",
+    "Mbappe",
+    "km",
+    "kyky",
+    "kylian mbappe",
+    "mbappe",
+    "mbappé"
+  ],
+  "ousmane dembele": [
+    "Dembele",
+    "OD",
+    "Ousmane",
+    "Ousmane Dembele",
+    "dembele",
+    "dembélé",
+    "od",
+    "ousmane dembele"
+  ],
+  "randal kolo muani": [
+    "Muani",
+    "RKM",
+    "Randal",
+    "Randal Kolo Muani",
+    "Randal Muani",
+    "kolo muani",
+    "randal kolo muani",
+    "rkm"
+  ],
+  "gianluigi donnarumma": [
+    "Donnarumma",
+    "GD",
+    "Gianluigi",
+    "Gianluigi Donnarumma",
+    "donnarumma",
+    "gd",
+    "gianluigi donnarumma"
+  ],
+  "marquinhos": [
+    "Marquinhos",
+    "marquinhos"
+  ],
+  "vitinha": [
+    "Vitinha",
+    "vitinha"
+  ],
+  "dusan vlahovic": [
+    "DV",
+    "Dusan",
+    "Dusan Vlahovic",
+    "Vlahovic",
+    "dusan vlahovic",
+    "dv",
+    "vlahovic"
+  ],
+  "federico chiesa": [
+    "Chiesa",
+    "FC",
+    "Federico",
+    "Federico Chiesa",
+    "chiesa",
+    "fc",
+    "federico chiesa"
+  ],
+  "manuel locatelli": [
+    "Locatelli",
+    "ML",
+    "Manuel",
+    "Manuel Locatelli",
+    "locatelli",
+    "manuel locatelli",
+    "ml"
+  ],
+  "gleison bremer": [
+    "Bremer",
+    "GB",
+    "Gleison",
+    "Gleison Bremer",
+    "bremer",
+    "gb",
+    "gleison bremer"
+  ],
+  "wojciech szczesny": [
+    "Szczesny",
+    "WS",
+    "Wojciech",
+    "Wojciech Szczesny",
+    "szczesny",
+    "wojciech szczesny",
+    "ws"
+  ],
+  "lautaro martinez": [
+    "LM",
+    "Lautaro",
+    "Lautaro Martinez",
+    "lautaro",
+    "lautaro martinez",
+    "lm",
+    "martinez",
+    "martínez"
+  ],
+  "nicolo barella": [
+    "Barella",
+    "NB",
+    "Nicolò Barella",
+    "Nicolò",
+    "Nicolò Barella",
+    "barella",
+    "nb",
+    "nicolo barella"
+  ],
+  "hakan calhanoglu": [
+    "Calhanoglu",
+    "HC",
+    "Hakan",
+    "Hakan Calhanoglu",
+    "calhanoglu",
+    "hakan calhanoglu",
+    "hc",
+    "çalhanoğlu"
+  ],
+  "alessandro bastoni": [
+    "AB",
+    "Alessandro",
+    "Alessandro Bastoni",
+    "Bastoni",
+    "ab",
+    "alessandro bastoni",
+    "bastoni"
+  ],
+  "yann sommer": [
+    "Sommer",
+    "YS",
+    "Yann",
+    "Yann Sommer",
+    "sommer",
+    "yann sommer",
+    "ys"
+  ],
+  "rafael leao": [
+    "Leao",
+    "RL",
+    "Rafael",
+    "Rafael Leao",
+    "leao",
+    "leão",
+    "rafael leao",
+    "rl"
+  ],
+  "theo hernandez": [
+    "Hernandez",
+    "TH",
+    "Theo",
+    "Theo Hernandez",
+    "hernandez",
+    "hernández",
+    "th",
+    "theo",
+    "theo hernandez"
+  ],
+  "mike maignan": [
+    "MM",
+    "Maignan",
+    "Mike",
+    "Mike Maignan",
+    "maignan",
+    "mike maignan",
+    "mm"
+  ],
+  "victor osimhen": [
+    "Osimhen",
+    "VO",
+    "Victor",
+    "Victor Osimhen",
+    "osimhen",
+    "victor osimhen",
+    "vo"
+  ],
+  "khvicha kvaratskhelia": [
+    "KK",
+    "Khvicha",
+    "Khvicha Kvaratskhelia",
+    "Kvaratskhelia",
+    "khvicha kvaratskhelia",
+    "kk",
+    "kvara",
+    "kvaratskhelia"
+  ],
+  "giovanni di lorenzo": [
+    "GDL",
+    "Giovanni",
+    "Giovanni Di Lorenzo",
+    "Giovanni Lorenzo",
+    "Lorenzo",
+    "di lorenzo",
+    "gdl",
+    "giovanni di lorenzo"
+  ],
+  "paulo dybala": [
+    "Dybala",
+    "PD",
+    "Paulo",
+    "Paulo Dybala",
+    "dybala",
+    "paulo dybala",
+    "pd"
+  ],
+  "antoine griezmann": [
+    "AG",
+    "Antoine",
+    "Antoine Griezmann",
+    "Griezmann",
+    "ag",
+    "antoine griezmann",
+    "griezmann"
+  ],
+  "alvaro morata": [
+    "AM",
+    "Alvaro",
+    "Alvaro Morata",
+    "Morata",
+    "alvaro morata",
+    "am",
+    "morata",
+    "álvaro morata"
+  ],
+  "jan oblak": [
+    "JO",
+    "Jan",
+    "Jan Oblak",
+    "Oblak",
+    "jan oblak",
+    "jo",
+    "oblak"
+  ],
+  "koke": [
+    "Koke",
+    "koke"
+  ],
+  "florian wirtz": [
+    "FW",
+    "Florian",
+    "Florian Wirtz",
+    "Wirtz",
+    "florian wirtz",
+    "fw",
+    "wirtz"
+  ],
+  "granit xhaka": [
+    "GX",
+    "Granit",
+    "Granit Xhaka",
+    "Xhaka",
+    "granit xhaka",
+    "gx",
+    "xhaka"
+  ],
+  "jeremie frimpong": [
+    "Frimpong",
+    "JF",
+    "Jeremie",
+    "Jeremie Frimpong",
+    "frimpong",
+    "jeremie frimpong",
+    "jf"
+  ],
+  "alexander isak": [
+    "AI",
+    "Alexander",
+    "Alexander Isak",
+    "Isak",
+    "ai",
+    "alexander isak",
+    "isak"
+  ],
+  "bruno guimaraes": [
+    "BG",
+    "Bruno",
+    "Bruno Guimaraes",
+    "Guimaraes",
+    "bg",
+    "bruno guimaraes",
+    "bruno guimarães",
+    "guimaraes"
+  ],
+  "kieran trippier": [
+    "KT",
+    "Kieran",
+    "Kieran Trippier",
+    "Trippier",
+    "kieran trippier",
+    "kt",
+    "trippier"
+  ],
+  "jarrod bowen": [
+    "Bowen",
+    "JB",
+    "Jarrod",
+    "Jarrod Bowen",
+    "bowen",
+    "jarrod bowen",
+    "jb"
+  ],
+  "lucas paqueta": [
+    "LP",
+    "Lucas",
+    "Lucas Paqueta",
+    "Paqueta",
+    "lp",
+    "lucas paqueta",
+    "paqueta",
+    "paquetá"
+  ],
+  "ollie watkins": [
+    "OW",
+    "Ollie",
+    "Ollie Watkins",
+    "Watkins",
+    "ollie watkins",
+    "ow",
+    "watkins"
+  ],
+  "douglas luiz": [
+    "DL",
+    "Douglas",
+    "Douglas Luiz",
+    "Luiz",
+    "dl",
+    "douglas luiz"
+  ],
+  "emiliano martinez": [
+    "EM",
+    "Emiliano",
+    "Emiliano Martinez",
+    "em",
+    "emi martinez",
+    "emiliano martinez",
+    "martinez",
+    "martínez"
+  ],
+  "moussa diaby": [
+    "Diaby",
+    "MD",
+    "Moussa",
+    "Moussa Diaby",
+    "diaby",
+    "md",
+    "moussa diaby"
+  ],
+  "kaoru mitoma": [
+    "KM",
+    "Kaoru",
+    "Kaoru Mitoma",
+    "Mitoma",
+    "kaoru mitoma",
+    "km",
+    "mitoma"
+  ],
+  "dominic calvert-lewin": [
+    "DCL",
+    "Dominic",
+    "Dominic Calvert-Lewin",
+    "Dominic Lewin",
+    "Lewin",
+    "calvert-lewin",
+    "dcl",
+    "dominic calvert-lewin"
+  ],
+  "jordan pickford": [
+    "JP",
+    "Jordan",
+    "Jordan Pickford",
+    "Pickford",
+    "jordan pickford",
+    "jp",
+    "pickford"
+  ],
+  "danny welbeck": [
+    "DW",
+    "Danny",
+    "Danny Welbeck",
+    "Welbeck",
+    "danny welbeck",
+    "dw",
+    "welbeck"
+  ],
+  "joao pedro": [
+    "JP",
+    "Joao",
+    "João Pedro",
+    "Pedro",
+    "joao pedro",
+    "joão pedro",
+    "jp",
+    "pedro"
+  ],
+  "abdoulaye doucoure": [
+    "AD",
+    "Abdoulaye",
+    "Abdoulaye Doucouré",
+    "Doucouré",
+    "Doucoure",
+    "abdoulaye doucoure",
+    "abdoulaye doucouré",
+    "ad",
+    "doucoure",
+    "doucouré"
+  ]
 }
