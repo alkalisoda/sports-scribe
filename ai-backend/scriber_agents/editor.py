@@ -2,19 +2,22 @@ import logging
 from typing import Any, List, Dict, Tuple
 from dotenv import load_dotenv
 import json
-from agents import Agent, Runner
 import asyncio
+import os
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain_core.runnables import RunnablePassthrough
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
 class Editor:
-    async def _safe_runner_call(self, agent, prompt: str, operation_name: str, timeout: float = 45.0):
-        """Make a safe Runner.run call with timeout."""
+    async def _safe_chain_call(self, chain, input_data: dict, operation_name: str, timeout: float = 45.0):
+        """Make a safe LangChain call with timeout."""
         try:
-            import asyncio
             result = await asyncio.wait_for(
-                Runner.run(agent, prompt),
+                chain.ainvoke(input_data),
                 timeout=timeout
             )
             return result
@@ -28,64 +31,54 @@ class Editor:
     def __init__(self, config: dict):
         self.config = config or {}
         
-        # Initialize specialized agents for different error types
-        self.score_process_agent = Agent(
-            instructions=self.get_score_process_prompt(),
-            name="ScoreProcessValidator",
-            output_type=str,
+        # Initialize LangChain LLM
+        self.llm = ChatOpenAI(
             model=self.config.get("model", "gpt-4o-mini"),
+            api_key=os.getenv("OPENAI_API_KEY"),
+            temperature=0.1,
+            max_retries=3,
+            request_timeout=30.0
         )
         
-        self.player_performance_agent = Agent(
-            instructions=self.get_player_performance_prompt(),
-            name="PlayerPerformanceValidator",
-            output_type=str,
-            model=self.config.get("model", "gpt-4o-mini"),
-        )
+        # Initialize parsers
+        self.json_parser = JsonOutputParser()
+        self.string_parser = StrOutputParser()
         
-        self.substitution_agent = Agent(
-            instructions=self.get_substitution_prompt(),
-            name="SubstitutionValidator",
-            output_type=str,
-            model=self.config.get("model", "gpt-4o-mini"),
-        )
-        
-        self.statistics_agent = Agent(
-            instructions=self.get_statistics_prompt(),
-            name="StatisticsValidator",
-            output_type=str,
-            model=self.config.get("model", "gpt-4o-mini"),
-        )
-        
-        self.disciplinary_agent = Agent(
-            instructions=self.get_disciplinary_prompt(),
-            name="DisciplinaryValidator",
-            output_type=str,
-            model=self.config.get("model", "gpt-4o-mini"),
-        )
-        
-        self.background_info_agent = Agent(
-            instructions=self.get_background_info_prompt(),
-            name="BackgroundInfoValidator",
-            output_type=str,
-            model=self.config.get("model", "gpt-4o-mini"),
-        )
-        
-        self.terminology_agent = Agent(
-            instructions=self.get_terminology_prompt(),
-            name="TerminologyValidator",
-            output_type=str,
-            model=self.config.get("model", "gpt-4o-mini"),
-        )
-        
-        self.final_editor_agent = Agent(
-            instructions=self.get_final_editor_prompt(),
-            name="FinalEditor",
-            output_type=str,
-            model=self.config.get("model", "gpt-4o-mini"),
-        )
+        # Initialize specialized chains for different error types
+        self.score_process_chain = self._create_json_chain("score_process")
+        self.player_performance_chain = self._create_json_chain("player_performance")
+        self.substitution_chain = self._create_json_chain("substitution")
+        self.statistics_chain = self._create_json_chain("statistics")
+        self.disciplinary_chain = self._create_json_chain("disciplinary")
+        self.background_info_chain = self._create_json_chain("background_info")
+        self.terminology_chain = self._create_json_chain("terminology")
+        self.final_editor_chain = self._create_string_chain("final_editor")
 
-        logger.info("Editor initialized successfully with modular validators")
+        logger.info("Editor initialized successfully with LangChain modular validators")
+    
+    def _create_json_chain(self, prompt_type: str):
+        """Create a LangChain chain for JSON output."""
+        prompt_method = getattr(self, f"get_{prompt_type}_prompt")
+        system_prompt = prompt_method()
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("human", "{input_text}")
+        ])
+        
+        return prompt | self.llm | self.json_parser
+    
+    def _create_string_chain(self, prompt_type: str):
+        """Create a LangChain chain for string output."""
+        prompt_method = getattr(self, f"get_{prompt_type}_prompt")
+        system_prompt = prompt_method()
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("human", "{input_text}")
+        ])
+        
+        return prompt | self.llm | self.string_parser
     
     def get_base_prompt(self) -> str:
         return """
@@ -207,32 +200,32 @@ class Editor:
         
         OUTPUT FORMAT:
         Return a JSON object with the following structure:
-        {
+        {{
             "errors_found": boolean,
             "error_type": "terminology",
             "errors": [
-                {
+                {{
                     "error_description": "description of the terminology error",
                     "original_text": "exact text that contains the error",
                     "correction_suggestion": "suggested correction",
                     "severity": "high/medium/low"
-                }
+                }}
             ],
             "corrected_sections": [
-                {
+                {{
                     "original": "original text section",
                     "corrected": "corrected text section"
-                }
+                }}
             ]
-        }
+        }}
         
         If no errors found, return:
-        {
+        {{
             "errors_found": false,
             "error_type": "terminology",
             "errors": [],
             "corrected_sections": []
-        }
+        }}
         """
 
     def get_score_process_prompt(self) -> str:
@@ -269,32 +262,32 @@ class Editor:
         
         OUTPUT FORMAT:
         Return a JSON object with the following structure:
-        {
+        {{
             "errors_found": boolean,
             "error_type": "score_process",
             "errors": [
-                {
+                {{
                     "error_description": "description of the factual error",
                     "original_text": "exact text that contains the error",
                     "correction_suggestion": "exact replacement text to fix the error",
                     "severity": "high/medium/low"
-                }
+                }}
             ],
             "corrected_sections": [
-                {
+                {{
                     "original": "original text section",
                     "corrected": "corrected text section"
-                }
+                }}
             ]
-        }
+        }}
         
         If no errors found, return:
-        {
+        {{
             "errors_found": false,
             "error_type": "score_process",
             "errors": [],
             "corrected_sections": []
-        }
+        }}
         """
     
     def get_player_performance_prompt(self) -> str:
@@ -332,32 +325,32 @@ class Editor:
         
         OUTPUT FORMAT:
         Return a JSON object with the following structure:
-        {
+        {{
             "errors_found": boolean,
             "error_type": "player_performance",
             "errors": [
-                {
+                {{
                     "error_description": "description of the factual error",
                     "original_text": "exact text that contains the error",
                     "correction_suggestion": "exact replacement text to fix the error",
                     "severity": "high/medium/low"
-                }
+                }}
             ],
             "corrected_sections": [
-                {
+                {{
                     "original": "original text section",
                     "corrected": "corrected text section"
-                }
+                }}
             ]
-        }
+        }}
         
         If no errors found, return:
-        {
+        {{
             "errors_found": false,
             "error_type": "player_performance",
             "errors": [],
             "corrected_sections": []
-        }
+        }}
         """
     
     def get_substitution_prompt(self) -> str:
@@ -388,32 +381,32 @@ class Editor:
         
         OUTPUT FORMAT:
         Return a JSON object with the following structure:
-        {
+        {{
             "errors_found": boolean,
             "error_type": "substitution",
             "errors": [
-                {
+                {{
                     "error_description": "description of the error",
                     "original_text": "exact text that contains the error",
                     "correction_suggestion": "suggested correction",
                     "severity": "high/medium/low"
-                }
+                }}
             ],
             "corrected_sections": [
-                {
+                {{
                     "original": "original text section",
                     "corrected": "corrected text section"
-                }
+                }}
             ]
-        }
+        }}
         
         If no errors found, return:
-        {
+        {{
             "errors_found": false,
             "error_type": "substitution",
             "errors": [],
             "corrected_sections": []
-        }
+        }}
         """
     
     def get_statistics_prompt(self) -> str:
@@ -437,32 +430,32 @@ class Editor:
         
         OUTPUT FORMAT:
         Return a JSON object with the following structure:
-        {
+        {{
             "errors_found": boolean,
             "error_type": "statistics",
             "errors": [
-                {
+                {{
                     "error_description": "description of the error",
                     "original_text": "exact text that contains the error",
                     "correction_suggestion": "suggested correction",
                     "severity": "high/medium/low"
-                }
+                }}
             ],
             "corrected_sections": [
-                {
+                {{
                     "original": "original text section",
                     "corrected": "corrected text section"
-                }
+                }}
             ]
-        }
+        }}
         
         If no errors found, return:
-        {
+        {{
             "errors_found": false,
             "error_type": "statistics",
             "errors": [],
             "corrected_sections": []
-        }
+        }}
         """
     
     def get_disciplinary_prompt(self) -> str:
@@ -484,32 +477,32 @@ class Editor:
         
         OUTPUT FORMAT:
         Return a JSON object with the following structure:
-        {
+        {{
             "errors_found": boolean,
             "error_type": "disciplinary",
             "errors": [
-                {
+                {{
                     "error_description": "description of the error",
                     "original_text": "exact text that contains the error",
                     "correction_suggestion": "suggested correction",
                     "severity": "high/medium/low"
-                }
+                }}
             ],
             "corrected_sections": [
-                {
+                {{
                     "original": "original text section",
                     "corrected": "corrected text section"
-                }
+                }}
             ]
-        }
+        }}
         
         If no errors found, return:
-        {
+        {{
             "errors_found": false,
             "error_type": "disciplinary",
             "errors": [],
             "corrected_sections": []
-        }
+        }}
         """
     
     def get_background_info_prompt(self) -> str:
@@ -538,32 +531,32 @@ class Editor:
         
         OUTPUT FORMAT:
         Return a JSON object with the following structure:
-        {
+        {{
             "errors_found": boolean,
             "error_type": "background_info",
             "errors": [
-                {
+                {{
                     "error_description": "description of the error",
                     "original_text": "exact text that contains the error",
                     "correction_suggestion": "suggested correction",
                     "severity": "high/medium/low"
-                }
+                }}
             ],
             "corrected_sections": [
-                {
+                {{
                     "original": "original text section",
                     "corrected": "corrected text section"
-                }
+                }}
             ]
-        }
+        }}
         
         If no errors found, return:
-        {
+        {{
             "errors_found": false,
             "error_type": "background_info",
             "errors": [],
             "corrected_sections": []
-        }
+        }}
         """
     
     def get_final_editor_prompt(self) -> str:
@@ -731,13 +724,13 @@ class Editor:
             
             # Run final editing with safe timeout
             try:
-                result = await self._safe_runner_call(
-                    self.final_editor_agent, 
-                    prompt, 
+                result = await self._safe_chain_call(
+                    self.final_editor_chain, 
+                    {"input_text": prompt}, 
                     "final editing", 
                     timeout=60.0
                 )
-                corrected_text = result.final_output_as(str).strip()
+                corrected_text = result.strip()
                 
                 logger.info("Comprehensive fact-checking completed successfully")
                 return corrected_text
@@ -913,9 +906,7 @@ class Editor:
     async def _validate_score_process(self, text: str, game_data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate score and match process."""
         try:
-            prompt = f"""
-            {self.get_score_process_prompt()}
-            
+            input_text = f"""
             ARTICLE TO VALIDATE:
             {text}
             
@@ -925,8 +916,12 @@ class Editor:
             Please validate the article for score and match process errors.
             """
             
-            result = await self._safe_runner_call(self.score_process_agent, prompt, "score process validation")
-            return json.loads(result.final_output_as(str))
+            result = await self._safe_chain_call(
+                self.score_process_chain, 
+                {"input_text": input_text}, 
+                "score process validation"
+            )
+            return result
         except Exception as e:
             logger.error(f"Error in score process validation: {e}")
             return {"errors_found": False, "error": str(e)}
@@ -934,9 +929,7 @@ class Editor:
     async def _validate_player_performance(self, text: str, game_data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate player performance."""
         try:
-            prompt = f"""
-            {self.get_player_performance_prompt()}
-            
+            input_text = f"""
             ARTICLE TO VALIDATE:
             {text}
             
@@ -946,8 +939,12 @@ class Editor:
             Please validate the article for player performance errors.
             """
             
-            result = await self._safe_runner_call(self.player_performance_agent, prompt, "player performance validation")
-            return json.loads(result.final_output_as(str))
+            result = await self._safe_chain_call(
+                self.player_performance_chain, 
+                {"input_text": input_text}, 
+                "player performance validation"
+            )
+            return result
         except Exception as e:
             logger.error(f"Error in player performance validation: {e}")
             return {"errors_found": False, "error": str(e)}
@@ -955,9 +952,7 @@ class Editor:
     async def _validate_substitutions(self, text: str, game_data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate substitutions and player status."""
         try:
-            prompt = f"""
-            {self.get_substitution_prompt()}
-            
+            input_text = f"""
             ARTICLE TO VALIDATE:
             {text}
             
@@ -967,8 +962,12 @@ class Editor:
             Please validate the article for substitution and player status errors.
             """
             
-            result = await Runner.run(self.substitution_agent, prompt)
-            return json.loads(result.final_output_as(str))
+            result = await self._safe_chain_call(
+                self.substitution_chain, 
+                {"input_text": input_text}, 
+                "substitution validation"
+            )
+            return result
         except Exception as e:
             logger.error(f"Error in substitution validation: {e}")
             return {"errors_found": False, "error": str(e)}
@@ -976,9 +975,7 @@ class Editor:
     async def _validate_statistics(self, text: str, game_data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate match statistics."""
         try:
-            prompt = f"""
-            {self.get_statistics_prompt()}
-            
+            input_text = f"""
             ARTICLE TO VALIDATE:
             {text}
             
@@ -988,8 +985,12 @@ class Editor:
             Please validate the article for statistics errors.
             """
             
-            result = await self._safe_runner_call(self.statistics_agent, prompt, "statistics validation")
-            return json.loads(result.final_output_as(str))
+            result = await self._safe_chain_call(
+                self.statistics_chain, 
+                {"input_text": input_text}, 
+                "statistics validation"
+            )
+            return result
         except Exception as e:
             logger.error(f"Error in statistics validation: {e}")
             return {"errors_found": False, "error": str(e)}
@@ -997,9 +998,7 @@ class Editor:
     async def _validate_disciplinary(self, text: str, game_data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate disciplinary events."""
         try:
-            prompt = f"""
-            {self.get_disciplinary_prompt()}
-            
+            input_text = f"""
             ARTICLE TO VALIDATE:
             {text}
             
@@ -1009,8 +1008,12 @@ class Editor:
             Please validate the article for disciplinary event errors.
             """
             
-            result = await Runner.run(self.disciplinary_agent, prompt)
-            return json.loads(result.final_output_as(str))
+            result = await self._safe_chain_call(
+                self.disciplinary_chain, 
+                {"input_text": input_text}, 
+                "disciplinary validation"
+            )
+            return result
         except Exception as e:
             logger.error(f"Error in disciplinary validation: {e}")
             return {"errors_found": False, "error": str(e)}
@@ -1018,9 +1021,7 @@ class Editor:
     async def _validate_background_info(self, text: str, game_data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate background information."""
         try:
-            prompt = f"""
-            {self.get_background_info_prompt()}
-            
+            input_text = f"""
             ARTICLE TO VALIDATE:
             {text}
             
@@ -1030,8 +1031,12 @@ class Editor:
             Please validate the article for background information errors.
             """
             
-            result = await Runner.run(self.background_info_agent, prompt)
-            return json.loads(result.final_output_as(str))
+            result = await self._safe_chain_call(
+                self.background_info_chain, 
+                {"input_text": input_text}, 
+                "background info validation"
+            )
+            return result
         except Exception as e:
             logger.error(f"Error in background info validation: {e}")
             return {"errors_found": False, "error": str(e)}
@@ -1039,9 +1044,7 @@ class Editor:
     async def _validate_terminology(self, text: str, game_data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate terminology usage."""
         try:
-            prompt = f"""
-            {self.get_terminology_prompt()}
-            
+            input_text = f"""
             ARTICLE TO VALIDATE:
             {text}
             
@@ -1051,8 +1054,12 @@ class Editor:
             Please validate the article for terminology errors.
             """
             
-            result = await Runner.run(self.terminology_agent, prompt)
-            return json.loads(result.final_output_as(str))
+            result = await self._safe_chain_call(
+                self.terminology_chain, 
+                {"input_text": input_text}, 
+                "terminology validation"
+            )
+            return result
         except Exception as e:
             logger.error(f"Error in terminology validation: {e}")
             return {"errors_found": False, "error": str(e)}
@@ -1094,8 +1101,12 @@ class Editor:
                 Please apply all the terminology corrections identified in the validation results and return the final corrected article.
                 """
                 
-                result = await Runner.run(self.final_editor_agent, prompt)
-                corrected_text = result.final_output_as(str).strip()
+                result = await self._safe_chain_call(
+                    self.final_editor_chain, 
+                    {"input_text": prompt}, 
+                    "terminology editing"
+                )
+                corrected_text = result.strip()
             else:
                 corrected_text = text
             
