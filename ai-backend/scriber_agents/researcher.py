@@ -1,36 +1,149 @@
 """Research Agent.
 
-This agent provides contextual background and analysis for sports articles.
+This agent provides contextual background and analysis for sports articles using
+LangChain framework with Chain of Thought reasoning and Agent + Tools architecture.
 It researches historical data, team/player statistics, and relevant context
 to enrich the content generation process.
 """
 
 import logging
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Optional
 from dotenv import load_dotenv
 import json
 
-from agents import Agent, Runner
+# LangChain imports
+from langchain.agents import AgentExecutor, create_openai_tools_agent
+from langchain.tools import BaseTool
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.pydantic_v1 import BaseModel, Field
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+class AnalysisResult(BaseModel):
+    """Schema for analysis results."""
+    storylines: List[str] = Field(description="List of storylines generated from analysis")
+    confidence: float = Field(description="Confidence score of the analysis", ge=0.0, le=1.0)
+    analysis_type: str = Field(description="Type of analysis performed")
+
+
+class MatchInfoAnalysisTool(BaseTool):
+    """Tool for analyzing match information."""
+    
+    name: str = "match_info_analyzer"
+    description: str = "Analyze basic match information for storylines including match context, teams, venue, league, and final score"
+    
+    def _run(self, match_info: str) -> str:
+        """Run the match info analysis."""
+        return f"Analyzing match information: {match_info}"
+    
+    async def _arun(self, match_info: str) -> str:
+        """Async version of the run method."""
+        return self._run(match_info)
+
+
+class EventsAnalysisTool(BaseTool):
+    """Tool for analyzing key match events."""
+    
+    name: str = "events_analyzer"
+    description: str = "Analyze key match events (goals, cards, substitutions) for storylines"
+    
+    def _run(self, events: str) -> str:
+        """Run the events analysis."""
+        return f"Analyzing match events: {events}"
+    
+    async def _arun(self, events: str) -> str:
+        """Async version of the run method."""
+        return self._run(events)
+
+
+class PlayerPerformanceAnalysisTool(BaseTool):
+    """Tool for analyzing player performances."""
+    
+    name: str = "player_performance_analyzer"
+    description: str = "Analyze individual player performances focusing on high-rated players and meaningful contributions"
+    
+    def _run(self, players: str) -> str:
+        """Run the player performance analysis."""
+        return f"Analyzing player performances: {players}"
+    
+    async def _arun(self, players: str) -> str:
+        """Async version of the run method."""
+        return self._run(players)
+
+
+class TeamStatisticsAnalysisTool(BaseTool):
+    """Tool for analyzing team statistics."""
+    
+    name: str = "team_statistics_analyzer"
+    description: str = "Analyze team-wide statistics including possession, shots, corners, fouls"
+    
+    def _run(self, statistics: str) -> str:
+        """Run the team statistics analysis."""
+        return f"Analyzing team statistics: {statistics}"
+    
+    async def _arun(self, statistics: str) -> str:
+        """Async version of the run method."""
+        return self._run(statistics)
+
+
+class LineupAnalysisTool(BaseTool):
+    """Tool for analyzing lineups and formations."""
+    
+    name: str = "lineup_analyzer"
+    description: str = "Analyze lineups, formations, and tactical setup"
+    
+    def _run(self, lineups: str) -> str:
+        """Run the lineup analysis."""
+        return f"Analyzing lineups and formations: {lineups}"
+    
+    async def _arun(self, lineups: str) -> str:
+        """Async version of the run method."""
+        return self._run(lineups)
+
+
 class ResearchAgent:
-    """Agent responsible for researching contextual information and analysis."""
+    """LangChain-based Research Agent with Chain of Thought reasoning."""
 
     def __init__(self, config: Dict[str, Any] = None):
-        """Initialize the Research Agent with configuration."""
+        """Initialize the LangChain Research Agent with configuration."""
         self.config = config or {}
         
-        # Initialize the research agent without web search capability
-        self.agent = Agent(
-            instructions="""You are a sports research agent. Provide clear, factual analysis based ONLY on provided data.
+        # Initialize LLM
+        self.llm = ChatOpenAI(
+            model=self.config.get("model", "gpt-4-1106-preview"),
+            temperature=self.config.get("temperature", 0.7),
+            max_tokens=self.config.get("max_tokens", 2000),
+        )
+        
+        # Initialize tools (currently placeholder tools that don't call external APIs)
+        self.tools = [
+            MatchInfoAnalysisTool(),
+            EventsAnalysisTool(),
+            PlayerPerformanceAnalysisTool(),
+            TeamStatisticsAnalysisTool(),
+            LineupAnalysisTool(),
+        ]
+        
+        # Create the main system prompt with Chain of Thought reasoning
+        self.system_prompt = """You are a sports research agent with Chain of Thought reasoning capabilities. 
+        Provide clear, factual analysis based ONLY on provided data.
 
             CORE PRINCIPLES:
             - ONLY use information explicitly provided in the data
             - When in doubt, exclude rather than include
             - Clearly distinguish between THIS MATCH events and background information
+        - Use Chain of Thought reasoning to break down complex analysis step by step
+
+        CHAIN OF THOUGHT PROCESS:
+        1. First, identify what data is available
+        2. Then, determine what analysis can be performed
+        3. Next, apply relevant validation rules
+        4. Finally, generate structured storylines
 
             DATA VERIFICATION RULES:
             - Use EXACT names, numbers, and times from the data
@@ -50,17 +163,37 @@ class ResearchAgent:
             - Exclude anything uncertain, unverified, or not clearly listed
             - Do not fabricate, assume, or infer events not present
 
-            Always return clear, structured analysis based solely on the provided data.""",
-            name="ResearchAgent",
-            output_type=str,
-            model=self.config.get("model", "gpt-4.1-nano"),
+        Always return clear, structured analysis based solely on the provided data.
+        Use the available tools to help with specific analysis tasks, but remember the tools are for organization - the actual analysis logic remains with you.
+        """
+        
+        # Create the prompt template
+        self.prompt = ChatPromptTemplate.from_messages([
+            ("system", self.system_prompt),
+            ("human", "{input}"),
+            MessagesPlaceholder(variable_name="agent_scratchpad"),
+        ])
+        
+        # Create the agent
+        self.agent = create_openai_tools_agent(self.llm, self.tools, self.prompt)
+        
+        # Create the agent executor
+        self.agent_executor = AgentExecutor(
+            agent=self.agent,
+            tools=self.tools,
+            verbose=True,
+            max_iterations=3,
+            early_stopping_method="generate"
         )
         
-        logger.info("Research Agent initialized successfully")
+        # Initialize JSON output parser
+        self.json_parser = JsonOutputParser(pydantic_object=AnalysisResult)
+        
+        logger.info("LangChain Research Agent initialized successfully")
 
 
     async def get_storyline_from_game_data(self, game_data: dict) -> list[str]:
-        """Get comprehensive storylines from game data by analyzing different components separately.
+        """Get comprehensive storylines from game data using Chain of Thought reasoning.
         
         Args:
             game_data: Compact game data from pipeline (contains match_info, events, players, statistics, lineups)
@@ -68,7 +201,7 @@ class ResearchAgent:
         Returns:
             list[str]: Comprehensive list of storylines including analysis
         """
-        logger.info("Generating comprehensive storylines from compact game data by analyzing components separately")
+        logger.info("Generating comprehensive storylines from compact game data using Chain of Thought reasoning")
         
         try:
             # Extract different components from compact data
@@ -78,492 +211,358 @@ class ResearchAgent:
             statistics = game_data.get("statistics", [])
             lineups = game_data.get("lineups", [])
             
-            all_storylines = []
+            # Use Chain of Thought reasoning for comprehensive analysis
+            cot_prompt = f"""
+            Using Chain of Thought reasoning, analyze the following game data comprehensively:
+
+            STEP 1 - DATA INVENTORY:
+            Let me first identify what data is available:
+            - Match Info: {bool(match_info)}
+            - Events: {len(events)} events available
+            - Players: {len(players)} players available  
+            - Statistics: {len(statistics)} team stats available
+            - Lineups: {len(lineups)} lineup records available
+
+            STEP 2 - ANALYSIS PLANNING:
+            Based on available data, I will analyze each component separately to ensure accuracy:
+
+            GAME DATA TO ANALYZE:
+            Match Info: {match_info}
+            Events: {events}
+            Players: {players}
+            Statistics: {statistics}
+            Lineups: {lineups}
+
+            STEP 3 - COMPONENT ANALYSIS:
+            Now I will analyze each component following the strict validation rules:
+
+            STEP 4 - STORYLINE GENERATION:
+            Generate storylines in JSON format as a list of strings. Each storyline should be factual and based only on the provided data.
+
+            Return the result as a JSON object with this structure:
+            {{
+                "storylines": ["storyline1", "storyline2", ...],
+                "confidence": 0.9,
+                "analysis_type": "comprehensive_game_analysis"
+            }}
+            """
             
-            # 1. Analyze match information (basic game context)
-            if match_info:
-                logger.info("Analyzing match information...")
-                match_storylines = await self._analyze_match_info(match_info)
-                all_storylines.extend(match_storylines)
+            # Execute the analysis using the agent
+            result = await self.agent_executor.ainvoke({
+                "input": cot_prompt
+            })
             
-            # 2. Analyze key events (goals, cards, substitutions)
-            if events:
-                logger.info("Analyzing key events...")
-                event_storylines = await self._analyze_events(events)
-                all_storylines.extend(event_storylines)
+            # Parse the output
+            output_text = result.get("output", "")
+            storylines = self._parse_storylines_from_output(output_text)
             
-            # 3. Analyze player performances (focus on high-rated players)
-            if players:
-                logger.info("Analyzing player performances...")
-                player_storylines = await self._analyze_player_performances(players)
-                all_storylines.extend(player_storylines)
+            if not storylines:
+                # Fallback to component-by-component analysis
+                storylines = await self._analyze_components_separately(
+                    match_info, events, players, statistics, lineups
+                )
             
-            # 4. Analyze team statistics
-            if statistics:
-                logger.info("Analyzing team statistics...")
-                stats_storylines = await self._analyze_team_statistics(statistics)
-                all_storylines.extend(stats_storylines)
-            
-            # 5. Analyze lineups and formations
-            if lineups:
-                logger.info("Analyzing lineups and formations...")
-                lineup_storylines = await self._analyze_lineups(lineups)
-                all_storylines.extend(lineup_storylines)
-            
-            logger.info(f"Generated {len(all_storylines)} storylines from separate component analysis")
-            return all_storylines
+            logger.info(f"Generated {len(storylines)} storylines using Chain of Thought reasoning")
+            return storylines
             
         except Exception as e:
-            logger.error(f"Error generating comprehensive storylines from game data: {e}")
+            logger.error(f"Error generating comprehensive storylines: {e}")
             return ["Comprehensive match analysis based on available game data", "Key moments and turning points from the match"]
 
-    async def _analyze_match_info(self, match_info: dict) -> list[str]:
-        """Analyze basic match information."""
+    async def _analyze_components_separately(self, match_info, events, players, statistics, lineups) -> List[str]:
+        """Analyze components separately using Chain of Thought reasoning."""
+        all_storylines = []
+        
+        # 1. Analyze match information
+        if match_info:
+            logger.info("Analyzing match information with CoT...")
+            match_storylines = await self._analyze_match_info_cot(match_info)
+            all_storylines.extend(match_storylines)
+            
+        # 2. Analyze key events
+        if events:
+            logger.info("Analyzing key events with CoT...")
+            event_storylines = await self._analyze_events_cot(events)
+            all_storylines.extend(event_storylines)
+            
+        # 3. Analyze player performances
+        if players:
+            logger.info("Analyzing player performances with CoT...")
+            player_storylines = await self._analyze_player_performances_cot(players)
+            all_storylines.extend(player_storylines)
+            
+        # 4. Analyze team statistics
+        if statistics:
+            logger.info("Analyzing team statistics with CoT...")
+            stats_storylines = await self._analyze_team_statistics_cot(statistics)
+            all_storylines.extend(stats_storylines)
+            
+        # 5. Analyze lineups and formations
+        if lineups:
+            logger.info("Analyzing lineups with CoT...")
+            lineup_storylines = await self._analyze_lineups_cot(lineups)
+            all_storylines.extend(lineup_storylines)
+        
+        return all_storylines
+
+    async def _safe_llm_call(self, prompt: str, operation_name: str, max_retries: int = 3, timeout: float = 30.0) -> str:
+        """Make a safe LLM call with timeout and retry mechanism."""
+        import asyncio
+        base_delay = 1
+        
+        for attempt in range(max_retries):
+            try:
+                result = await asyncio.wait_for(
+                    self.llm.ainvoke([HumanMessage(content=prompt)]),
+                    timeout=timeout
+                )
+                return result.content
+                
+            except asyncio.TimeoutError:
+                logger.warning(f"Timeout on attempt {attempt + 1}/{max_retries} for {operation_name}")
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff
+                    logger.info(f"Retrying {operation_name} in {delay} seconds...")
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    logger.error(f"All retry attempts failed due to timeout for {operation_name}")
+                    raise asyncio.TimeoutError(f"{operation_name} timed out after {max_retries} attempts")
+                    
+            except Exception as e:
+                logger.error(f"Error in {operation_name} on attempt {attempt + 1}: {e}")
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logger.info(f"Retrying {operation_name} in {delay} seconds...")
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    raise e
+        
+        raise Exception(f"{operation_name} failed after {max_retries} attempts")
+
+    def _parse_storylines_from_output(self, output_text: str) -> List[str]:
+        """Parse storylines from LLM output text."""
         try:
-            match_info_str = str(match_info)
-            prompt = f"""
-            Analyze basic match information for storylines.
+            # Try to parse as JSON first
+            if output_text.strip().startswith('['):
+                storylines = json.loads(output_text)
+                if isinstance(storylines, list):
+                    return [str(s).strip() for s in storylines if s]
+            
+            # Try to find JSON array in the text
+            import re
+            json_pattern = r'\[.*?\]'
+            matches = re.findall(json_pattern, output_text, re.DOTALL)
+            for match in matches:
+                try:
+                    storylines = json.loads(match)
+                    if isinstance(storylines, list):
+                        return [str(s).strip() for s in storylines if s]
+                except:
+                    continue
+            
+            # Fallback: split by lines and clean
+            lines = [line.strip() for line in output_text.split('\n') if line.strip()]
+            # Filter out non-storyline content
+            storylines = []
+            for line in lines:
+                if any(keyword in line.lower() for keyword in ['step', 'analysis', 'examination', 'validation']):
+                    continue
+                if line.startswith('"') and line.endswith('"'):
+                    storylines.append(line[1:-1])
+                elif len(line) > 10:  # Reasonable storyline length
+                    storylines.append(line)
+            
+            return storylines[:10]  # Limit to reasonable number
+            
+        except Exception as e:
+            logger.error(f"Error parsing storylines: {e}")
+            return []
 
-            MATCH INFO:
-            {match_info_str}
+    async def _analyze_match_info_cot(self, match_info: dict) -> list[str]:
+        """Analyze basic match information using Chain of Thought reasoning."""
+        try:
+            cot_prompt = f"""
+            CHAIN OF THOUGHT ANALYSIS - MATCH INFORMATION:
 
-            RULES:
+            STEP 1 - DATA EXAMINATION:
+            Let me examine the match information data:
+            {match_info}
+
+            STEP 2 - VALIDATION:
+            I need to verify what information is explicitly available:
+            - Team names: Check for exact team names
+            - Venue: Look for venue information
+            - League: Identify league context
+            - Final score: Determine match result
+            - Match date/time: Extract timing information
+
+            STEP 3 - STORYLINE RULES APPLICATION:
+            Applying the rules:
             - Focus on match context, teams, venue, league, and final score
             - Use exact team names, venue, and league information
             - Describe the match result clearly
             - NO historical data or assumptions
 
+            STEP 4 - STORYLINE GENERATION:
+            Based on the validated data, generate storylines.
+
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
             Example: ["Team A defeated Team B 1-0 at Venue X", "The match was the opening/mid-season/closing fixture of the 2024 Premier League season"]
             """
             
-            result = await Runner.run(self.agent, prompt)
-            try:
-                storylines = json.loads(result.final_output)
-                if isinstance(storylines, list):
-                    # Handle both string and dict formats
-                    processed_storylines = []
-                    for s in storylines:
-                        if isinstance(s, str):
-                            processed_storylines.append(s.strip())
-                        elif isinstance(s, dict):
-                            # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
-                            else:
-                                processed_storylines.append(str(s).strip())
-                    return processed_storylines
-            except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
+            result = await self.llm.ainvoke([HumanMessage(content=cot_prompt)])
+            storylines = self._parse_storylines_from_output(result.content)
+            return storylines
             
         except Exception as e:
-            logger.error(f"Error analyzing match info: {e}")
+            logger.error(f"Error analyzing match info with CoT: {e}")
             return []
 
-    async def _analyze_events(self, events: list) -> list[str]:
-        """Analyze key events (goals, cards, substitutions)."""
+    async def _analyze_events_cot(self, events: list) -> list[str]:
+        """Analyze key events using Chain of Thought reasoning."""
         try:
-            events_str = str(events)
-            prompt = f"""
-            Analyze key match events for storylines.
+            cot_prompt = f"""
+            CHAIN OF THOUGHT ANALYSIS - MATCH EVENTS:
 
-            EVENTS:
-            {events_str}
+            STEP 1 - DATA EXAMINATION:
+            Let me examine the events data:
+            {events}
 
-            EVENT-PLAYER CORRESPONDENCE RULES:
-            - Each event must contain its own player and time data - DO NOT mix between events
-            - Goal event player = only the player listed in that Goal event
-            - Card event player = only the player listed in that Card event  
-            - Substitution event players = only the players listed in that Substitution event
-            - Goal time cannot be used as substitution time
-            - Card time cannot be used as goal time
+            STEP 2 - EVENT CATEGORIZATION:
+            I need to categorize and validate each event type:
+            - Goals: Identify scorer, assist, time, team
+            - Cards: Identify player, card type, time, team  
+            - Substitutions: Identify players in/out, time, team
+            - VAR events: Identify type and impact
 
-            GOAL & ASSIST VALIDATION RULES:
-            - Only describe goals from "Goal" events (type="Goal")
-            - "player" = who scored, "assist" = who assisted
-            - NEVER attribute a goal to a player who only assisted
-            - NEVER attribute an assist to a player who only scored
-
-            GOAL COUNT VALIDATION RULES:
-            - Use only "Goal" events (type == "Goal") to determine how many goals each player scored.
-            - If a player appears only ONCE as the scorer, do NOT say “scored again”, “second goal”, “brace”, “double”, etc.
-            - These terms may ONLY be used if the same player appears MULTIPLE times as scorer.
-            - If the player scored once, use phrases like “scored a goal” or “found the net”.
-            - NEVER assume a player scored more than once unless it's explicitly recorded.
-
-            SUBSTITUTION IDENTITY LOGIC:
-            - In substitution events: "in" = player being substituted ON, "out" = player being substituted OFF
-            - Only call a player "substituted in" if they appear as the "in" field in a substitution event
-            - Only call a player "substituted out" if they appear as the "out" field in the same event
-            - Use clear language: "Player X was substituted in, replacing Player Y" or "Player Y was replaced by Player X"
-            - Never reverse the order of the players in the substitution event.
-
-            TEAM VERIFICATION FOR EVENTS:
-            - Each event (goal, card, substitution) contains a "team" field indicating which team made the event
-            - All involved players ("in", "out", "player", "assist") MUST belong to the same team as specified in the "team" field
-            - DO NOT list players under the wrong team
-            - DO NOT describe players from the opposing team as involved in the current team's event
-            - Mention the team name in the storylines
-            Example: If team = "Southampton", then both "player" and "assist" must be Southampton players
-
-            VAR EVENTS:
-            - If an event has `type = Var` and `detail = Goal cancelled`, do NOT assume the `player` listed scored the goal unless there is a separate `goal` event with the same player.
-            - A VAR event involving a player only means the player was affected by or related to the decision — not necessarily the scorer.
-            - Only describe a player as scoring a goal if there is an explicit `event_type = goal` with `scorer = player`.
-            - Use safe phrasing like "A goal was cancelled by VAR involving [player]" if no scorer is confirmed.
-
-            GOAL TIMING LOGIC:
-            - Do NOT describe a goal as "early lead" unless it happens in first half (≤ 45 minutes)
-            - If goal occurs after 75th minute, describe as "late winner" or "decisive goal"
-
-            OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
-            Example: ["Player A scored the winning goal in the nth minute", "Player B was substituted in at n minutes, replacing Player C", "VAR cancelled a potential goal of Team A for offside, involving Player D", "Half time was reached"]
-            
-            SUBSTITUTION IMPACT RULES:
-            - When analyzing substitutions, evaluate their impact based on subsequent events.
-            - If a substituted-in player scored a goal, made an assist, or received a card, describe the substitution as impactful.
-            - Highlight linkages: e.g., "Substitute Player A scored the winner after coming on in the nth minute after replacing Player B"
-            - If a substitution was followed by no key contribution or came in very late, it should be noted as such.
-            - Do not describe substitutions as meaningful unless supported by data (e.g., goal, assist, card).
-            """
-            
-            result = await Runner.run(self.agent, prompt)
-            try:
-                storylines = json.loads(result.final_output)
-                if isinstance(storylines, list):
-                    # Handle both string and dict formats
-                    processed_storylines = []
-                    for s in storylines:
-                        if isinstance(s, str):
-                            processed_storylines.append(s.strip())
-                        elif isinstance(s, dict):
-                            # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
-                            else:
-                                processed_storylines.append(str(s).strip())
-                    return processed_storylines
-            except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
-            
-        except Exception as e:
-            logger.error(f"Error analyzing events: {e}")
-            return []
-
-    async def _analyze_player_performances(self, players: list) -> list[str]:
-        """Analyze individual player performances (focus on high-rated players)."""
-        try:
-            players_str = str(players)
-            prompt = f"""
-            Analyze individual player performances for storylines.
-
-            PLAYERS:
-            {players_str}
-
-            STATISTICS VALIDATION RULES:
-            - Only use statistics explicitly provided in the data
-            - Distinguish between individual player stats and team stats
-            - Verify exact numbers from source data - DO NOT approximate or round
-            - Individual stats (e.g., "player won 10/14 duels") ≠ Team stats
-
-            PLAYER STATISTICS STORYLINE RULES:
-            - Use player statistics and match contribution to determine inclusion
-            - DO NOT rely solely on rating for filtering
-            - Describe any player who showed meaningful involvement, such as:
-              - Playing 60+ minutes with ≥ 80% pass accuracy or ≥ 35+ total passes
-              - ≥ 2 tackles, interceptions, or clearances
-              - ≥ 4 duels won
-              - ≥ 1 goal or assist
-            - You may still mention high-rated players (rating ≥ 7.0), but it is not mandatory
-            - DO NOT describe players who had zero minutes or no stats
-            - DO NOT include yellow or red cards in player performance. Only analyze goals, assists, passes, tackles, duels, etc.
-            - In substitution events: "in" = player being substituted ON, "out" = player being substituted OFF
-            - For VAR or canceled goals, do NOT assume the player scored unless explicitly stated; only mention the player's involvement and the event. Example: "A goal initially scored by Player A was canceled by VAR at the nth minute." or "A goal was canceled by VAR involving Player A."
-
-            GOAL COUNT VALIDATION (MANDATORY):
-            - If a player is described as having scored "a brace", "twice", "two goals", or "a second goal", you MUST verify that the player appears more than once as a scorer in the 'events' section where type == "Goal".
-            - If the player appears only once, this is a factual error.
-            - Correct any instance of "brace" or "second goal" to reflect the accurate number of goals scored.
-            - DO NOT rely on `player_performance` or inferred phrasing. Use `goal` events only.
-
-            OUTPUT FORMAT: Return ONLY a JSON array of simple strings, each describing the player's own actions and involvement, with no ambiguity.
-            Example: ["Player A was substituted in for Player B at the nth minute.", "A potential goal was canceled by VAR at the nth minute, involving Player C."]
-            """
-            
-            result = await Runner.run(self.agent, prompt)
-            try:
-                storylines = json.loads(result.final_output)
-                if isinstance(storylines, list):
-                    # Handle both string and dict formats
-                    processed_storylines = []
-                    for s in storylines:
-                        if isinstance(s, str):
-                            processed_storylines.append(s.strip())
-                        elif isinstance(s, dict):
-                            # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
-                            else:
-                                processed_storylines.append(str(s).strip())
-                    return processed_storylines
-            except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
-            
-        except Exception as e:
-            logger.error(f"Error analyzing player performances: {e}")
-            return []
-
-    async def _analyze_player_events(self, events: list) -> list[str]:
-        """Analyze player events (goals, assists, cards, substitutions)."""
-        try:
-            events_str = str(events)
-            prompt = f"""
-            Analyze player events for performance storylines.
-
-            EVENTS:
-            {events_str}
-
-            EVENT-PLAYER CORRESPONDENCE RULES:
+            STEP 3 - VALIDATION RULES APPLICATION:
+            Applying strict validation rules:
             - Each event must contain its own player and time data - DO NOT mix between events
             - Goal event player = only the player listed in that Goal event
             - Card event player = only the player listed in that Card event  
             - Substitution event players = only the players listed in that Substitution event
 
-            GOAL & ASSIST VALIDATION RULES:
-            - Only describe goals from "Goal" events (type="Goal")
-            - "player" = who scored, "assist" = who assisted
-            - NEVER attribute a goal to a player who only assisted
-            - NEVER attribute an assist to a player who only scored
-
-            GOAL COUNT VALIDATION RULES:
-            - Use only "Goal" events (type == "Goal") to determine how many goals each player scored.
-            - If a player appears only ONCE as the scorer, do NOT say “scored again”, “second goal”, “brace”, “double”, etc.
-            - These terms may ONLY be used if the same player appears MULTIPLE times as scorer.
-            - If the player scored once, use phrases like “scored a goal” or “found the net”.
-            - NEVER assume a player scored more than once unless it's explicitly recorded.
-
-            SUBSTITUTION IDENTITY RULE:
-            - In substitution events: "in" = player being substituted ON, "out" = player being substituted OFF
-            - Only call a player "substituted in" if they appear as the "in" field in a substitution event
-            - Only call a player "substituted out" if they appear as the "out" field in the same event
-            - Use clear language: "Player X was substituted in, replacing Player Y"
-            - The structure is now unambiguous: "in" = coming on, "out" = going off
-            - Don't use the same player for both "in" and "out" in the same substitution event
-            - Don't use "assist" for substitution events, use "replace" instead
-
-            ASSIST VALIDATION RULE:
-            - Only mention an assist if the player is listed as "assist" in a Goal event
-
-            CARD VALIDATION RULES:
-            - Only describe cards shown in "Card" events (type="Card")
-            - Card time must come from Card event time, not other events
-            - DO NOT include yellow or red cards in player performance. Only analyze goals, assists, passes, tackles, duels, etc.
-
-            CONTRIBUTION FILTERING RULE:
-            - Only include players who made notable contributions
-            - Focus on players with goals, assists, or substitutions
-            - Only mention cards if they lead to red cards or cause significant incidents
-            - Avoid listing players with no meaningful involvement
-            - DO NOT duplicate information that appears in game_analysis
+            STEP 4 - STORYLINE GENERATION:
+            Generate factual storylines based on validated events.
 
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
-            Example: ["J. Zirkzee scored the winning goal in the 87th minute", "A. Diallo was substituted in at 61 minutes, replacing A. Garnacho"]
-            
-            SUBSTITUTION IMPACT RULES:
-            - When analyzing substitutions, evaluate their impact based on subsequent events.
-            - If a substituted-in player scored a goal, made an replacement, or received a card, describe the substitution as impactful.
-            - Highlight linkages: e.g., "Substitute J. Zirkzee scored the winner after coming on in the 61st minute after replacing M. Mount"
-            - If a substitution was followed by no key contribution or came in very late, it should be noted as such.
-            - Do not describe substitutions as meaningful unless supported by data (e.g., goal, assist, card).
-            - DO NOT infer substitution time from goal/card event.
-            - Example (valid): "Player A, who came on in the 46th minute, was booked in the 90th minute"
+            Example: ["Player A scored the winning goal in the nth minute", "Player B was substituted in at n minutes, replacing Player C"]
             """
             
-            result = await Runner.run(self.agent, prompt)
-            try:
-                storylines = json.loads(result.final_output)
-                if isinstance(storylines, list):
-                    # Handle both string and dict formats
-                    processed_storylines = []
-                    for s in storylines:
-                        if isinstance(s, str):
-                            processed_storylines.append(s.strip())
-                        elif isinstance(s, dict):
-                            # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
-                            else:
-                                processed_storylines.append(str(s).strip())
-                    return processed_storylines
-            except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
+            result = await self.llm.ainvoke([HumanMessage(content=cot_prompt)])
+            storylines = self._parse_storylines_from_output(result.content)
+            return storylines
             
         except Exception as e:
-            logger.error(f"Error analyzing player events: {e}")
+            logger.error(f"Error analyzing events with CoT: {e}")
             return []
 
-    async def _analyze_player_statistics(self, players: list) -> list[str]:
-        """Analyze player statistics for performance storylines (focus on high-rated players)."""
+    async def _analyze_player_performances_cot(self, players: list) -> list[str]:
+        """Analyze individual player performances using Chain of Thought reasoning."""
         try:
-            players_str = str(players)
-            prompt = f"""
-            Analyze player statistics for performance storylines.
+            cot_prompt = f"""
+            CHAIN OF THOUGHT ANALYSIS - PLAYER PERFORMANCES:
 
-            PLAYERS:
-            {players_str}
+            STEP 1 - DATA EXAMINATION:
+            Let me examine the player performance data:
+            {players}
 
-            STATISTICS VALIDATION RULES:
-            - Only use statistics explicitly provided in the data
-            - Distinguish between individual player stats and team stats
-            - Verify exact numbers from source data - DO NOT approximate or round
-            - Individual stats (e.g., "player won 10/14 duels") ≠ Team stats
+            STEP 2 - PERFORMANCE CRITERIA IDENTIFICATION:
+            I need to identify meaningful performance indicators:
+            - Playing time: 60+ minutes
+            - Pass accuracy: ≥ 80% with ≥ 35+ total passes
+            - Defensive actions: ≥ 2 tackles, interceptions, or clearances
+            - Duels: ≥ 4 duels won
+            - Direct contributions: ≥ 1 goal or assist
 
-            PLAYER STATISTICS STORYLINE RULES:
-            - Use player statistics and match contribution to determine inclusion
-            - DO NOT rely solely on rating for filtering
-            - Describe any player who showed meaningful involvement, such as:
-              - Playing 60+ minutes with ≥ 80% pass accuracy or ≥ 35+ total passes
-              - ≥ 2 tackles, interceptions, or clearances
-              - ≥ 4 duels won
-              - ≥ 1 goal or assist
-            - You may still mention high-rated players (rating ≥ 7.0), but it is not mandatory
-            - DO NOT describe players who had zero minutes or no stats
+            STEP 3 - STORYLINE GENERATION:
+            Generate performance storylines based on validated data.
 
-            OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
-            Example: ["Casemiro completed 53 passes with 43% accuracy in 90 minutes", "Player X made 4 tackles and won 7 out of 13 duels"]
+            OUTPUT FORMAT: Return ONLY a JSON array of simple strings describing player actions.
+            Example: ["Player A completed 85% of passes with 45 total passes", "Player B won 8 out of 12 duels"]
             """
             
-            result = await Runner.run(self.agent, prompt)
-            try:
-                storylines = json.loads(result.final_output)
-                if isinstance(storylines, list):
-                    # Handle both string and dict formats
-                    processed_storylines = []
-                    for s in storylines:
-                        if isinstance(s, str):
-                            processed_storylines.append(s.strip())
-                        elif isinstance(s, dict):
-                            # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
-                            else:
-                                processed_storylines.append(str(s).strip())
-                    return processed_storylines
-            except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
+            result = await self.llm.ainvoke([HumanMessage(content=cot_prompt)])
+            storylines = self._parse_storylines_from_output(result.content)
+            return storylines
             
         except Exception as e:
-            logger.error(f"Error analyzing player statistics: {e}")
+            logger.error(f"Error analyzing player performances with CoT: {e}")
             return []
 
-    async def _analyze_team_statistics(self, statistics: list) -> list[str]:
-        """Analyze team statistics."""
+    async def _analyze_team_statistics_cot(self, statistics: list) -> list[str]:
+        """Analyze team statistics using Chain of Thought reasoning."""
         try:
-            statistics_str = str(statistics)
-            prompt = f"""
-            Analyze team statistics for storylines.
+            cot_prompt = f"""
+            CHAIN OF THOUGHT ANALYSIS - TEAM STATISTICS:
 
-            STATISTICS:
-            {statistics_str}
+            STEP 1 - DATA EXAMINATION:
+            Let me examine the team statistics data:
+            {statistics}
 
-            TEAM-LEVEL STATS RULES:
-            - Only use team-wide statistics from the "statistics" section
-            - Compare statistics between teams
-            - Focus on key metrics like possession, shots, corners, fouls
-            
-            - Include detailed shooting breakdown:
-                - "Shots insidebox"
-                - "Shots outsidebox"
-                - "Blocked shots"
-            - Always quote the exact number from the statistics data
-            - Never assume or simplify; do not equate “shots on target” with “inside the box”
+            STEP 2 - STATISTIC CATEGORIZATION:
+            I need to categorize the available team statistics:
+            - Possession: Ball possession percentages
+            - Shooting: Shots, shots on target, shots inside/outside box
+            - Set pieces: Corners, free kicks
+            - Discipline: Fouls, cards
+
+            STEP 3 - STORYLINE GENERATION:
+            Generate comparative team statistics storylines.
 
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
             Example: ["Manchester United dominated possession with 55% compared to Fulham's 45%", "Both teams received 3 yellow cards each"]
             """
             
-            result = await Runner.run(self.agent, prompt)
-            try:
-                storylines = json.loads(result.final_output)
-                if isinstance(storylines, list):
-                    # Handle both string and dict formats
-                    processed_storylines = []
-                    for s in storylines:
-                        if isinstance(s, str):
-                            processed_storylines.append(s.strip())
-                        elif isinstance(s, dict):
-                            # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
-                            else:
-                                processed_storylines.append(str(s).strip())
-                    return processed_storylines
-            except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
+            result = await self.llm.ainvoke([HumanMessage(content=cot_prompt)])
+            storylines = self._parse_storylines_from_output(result.content)
+            return storylines
             
         except Exception as e:
-            logger.error(f"Error analyzing team statistics: {e}")
+            logger.error(f"Error analyzing team statistics with CoT: {e}")
             return []
 
-    async def _analyze_lineups(self, lineups: list) -> list[str]:
-        """Analyze lineups and formations."""
+    async def _analyze_lineups_cot(self, lineups: list) -> list[str]:
+        """Analyze lineups and formations using Chain of Thought reasoning."""
         try:
-            lineups_str = str(lineups)
-            prompt = f"""
-            Analyze lineups and formations for storylines.
+            cot_prompt = f"""
+            CHAIN OF THOUGHT ANALYSIS - LINEUPS AND FORMATIONS:
 
-            LINEUPS:
-            {lineups_str}
+            STEP 1 - DATA EXAMINATION:
+            Let me examine the lineup data:
+            {lineups}
 
-            RULES:
-            - Focus on formations, key players, and tactical setup
-            - Use exact formation information
-            - Mention notable players in starting XI
-            - NO assumptions about player performance
+            STEP 2 - TACTICAL INFORMATION EXTRACTION:
+            I need to extract tactical information:
+            - Formations: Team formations (e.g., 4-2-3-1, 3-5-2)
+            - Starting XI: Key players in starting lineup
+            - Tactical setup: Defensive/attacking approach if evident
+
+            STEP 3 - STORYLINE GENERATION:
+            Generate lineup and formation storylines.
 
             OUTPUT FORMAT: Return ONLY a JSON array of simple strings.
             Example: ["Both teams employed a 4-2-3-1 formation", "Manchester United's starting XI featured key players like Bruno Fernandes"]
             """
             
-            result = await Runner.run(self.agent, prompt)
-            try:
-                storylines = json.loads(result.final_output)
-                if isinstance(storylines, list):
-                    # Handle both string and dict formats
-                    processed_storylines = []
-                    for s in storylines:
-                        if isinstance(s, str):
-                            processed_storylines.append(s.strip())
-                        elif isinstance(s, dict):
-                            # Extract storyline from dict if present
-                            if 'storyline' in s:
-                                processed_storylines.append(str(s['storyline']).strip())
-                            elif 'details' in s:
-                                processed_storylines.append(str(s['details']).strip())
-                            else:
-                                processed_storylines.append(str(s).strip())
-                    return processed_storylines
-            except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
+            result = await self.llm.ainvoke([HumanMessage(content=cot_prompt)])
+            storylines = self._parse_storylines_from_output(result.content)
+            return storylines
             
         except Exception as e:
-            logger.error(f"Error analyzing lineups: {e}")
+            logger.error(f"Error analyzing lineups with CoT: {e}")
             return []
+
+
+
+
+    # All old methods using Runner have been removed and replaced with 
+    # LangChain-based methods with Chain of Thought reasoning above
         
     async def get_history_from_team_data(self, team_data: dict) -> list[str]:
-        """Get historical context from team data ONLY (background information).
+        """Get historical context from team data using Chain of Thought reasoning.
         
         Args:
             team_data: Team information including enhanced data (background/historical only)
@@ -571,38 +570,57 @@ class ResearchAgent:
         Returns:
             list[str]: Historical context and background information
         """
-        logger.info("Analyzing historical context from team data (background information only)")
+        logger.info("Analyzing historical context from team data using Chain of Thought reasoning")
         
         try:
-            team_data_str = str(team_data)
-            prompt = f"""
-            Analyze BACKGROUND information about teams.
+            cot_prompt = f"""
+            CHAIN OF THOUGHT ANALYSIS - TEAM HISTORICAL CONTEXT:
 
-            TEAM DATA:
-            {team_data_str}
+            STEP 1 - DATA EXAMINATION:
+            Let me examine the team data for background information:
+            {team_data}
 
-            RULES:
+            STEP 2 - CONTEXT IDENTIFICATION:
+            I need to identify historical/background information:
+            - Team history and achievements
+            - Recent form or season performance
+            - Head-to-head records
+            - Notable players or transfers
+            - League position or standings
+
+            STEP 3 - VALIDATION RULES:
+            Applying validation rules:
             - Use only background/historical information
             - Do NOT mention current match events
             - Only include facts explicitly in the data
+            - No assumptions or inferences
 
-            OUTPUT: JSON array of 3-5 background statements.
+            STEP 4 - STORYLINE GENERATION:
+            Generate 3-5 background statements based on validated data.
+
+            OUTPUT: JSON array of background statements.
             """
             
-            result = await Runner.run(self.agent, prompt)
+            # Use safe LLM call with timeout and retry
             try:
-                storylines = json.loads(result.final_output)
-                if isinstance(storylines, list):
-                    return [str(s).strip() for s in storylines if s]
-            except Exception:
-                return [line.strip() for line in result.final_output.splitlines() if line.strip()]
+                content = await self._safe_llm_call(cot_prompt, "historical context analysis")
+                storylines = self._parse_storylines_from_output(content)
+                
+                if not storylines:
+                    return ["Historical context based on available team data", "Team performance analysis from provided data"]
+                
+                return storylines[:5]  # Limit to 5 background statements
+                
+            except Exception as e:
+                logger.error(f"Safe LLM call failed for historical context: {e}")
+                return ["Historical context analysis failed - using fallback insights", "Team performance analysis from provided data"]
             
         except Exception as e:
-            logger.error(f"Error analyzing historical context: {e}")
+            logger.error(f"Error analyzing historical context with CoT: {e}")
             return ["Historical context based on available team data", "Team performance analysis from provided data"]
 
     async def get_performance_from_player_game_data(self, player_data: dict, game_data: dict) -> list[str]:
-        """Analyze individual player performance from game data by analyzing components separately.
+        """Analyze individual player performance using Chain of Thought reasoning.
         
         Args:
             player_data: Player information including enhanced data
@@ -611,30 +629,53 @@ class ResearchAgent:
         Returns:
             list[str]: Player performance analysis based ONLY on current match events
         """
-        logger.info("Analyzing individual player performance from compact game data by analyzing components separately")
+        logger.info("Analyzing individual player performance using Chain of Thought reasoning")
         
         try:
-            all_storylines = []
+            cot_prompt = f"""
+            CHAIN OF THOUGHT ANALYSIS - INDIVIDUAL PLAYER PERFORMANCE:
+
+            STEP 1 - DATA EXAMINATION:
+            Let me examine the player and game data:
+            Player Data: {player_data}
+            Game Data Events: {game_data.get("events", [])}
+            Game Data Players: {game_data.get("players", [])}
+
+            STEP 2 - PERFORMANCE COMPONENT IDENTIFICATION:
+            I need to identify performance components:
+            - Player events: Goals, assists, cards, substitutions
+            - Player statistics: Passes, tackles, duels, ratings
+            - Match involvement: Minutes played, key actions
+
+            STEP 3 - VALIDATION RULES APPLICATION:
+            Applying validation rules:
+            - Only use current match events and statistics
+            - Each event must contain its own player and time data
+            - Do not mix events or assume connections
+            - Verify exact numbers and statistics
+
+            STEP 4 - CONTRIBUTION ASSESSMENT:
+            Assess meaningful contributions:
+            - Goals and assists
+            - High pass accuracy with significant volume
+            - Defensive actions (tackles, interceptions)
+            - Duel success rate
+            - Overall match impact
+
+            STEP 5 - STORYLINE GENERATION:
+            Generate player performance storylines based on current match data only.
+
+            OUTPUT: JSON array of player performance statements.
+            """
             
-            # Extract different components from compact data
-            events = game_data.get("events", [])
-            players = game_data.get("players", [])
+            result = await self.llm.ainvoke([HumanMessage(content=cot_prompt)])
+            storylines = self._parse_storylines_from_output(result.content)
             
-            # 1. Analyze player events (goals, assists, cards, substitutions)
-            if events:
-                logger.info("Analyzing player events...")
-                event_storylines = await self._analyze_player_events(events)
-                all_storylines.extend(event_storylines)
+            if not storylines:
+                return ["Player performance analysis based on available data", "Individual contributions from the match data"]
             
-            # 2. Analyze player statistics (focus on high-rated players)
-            if players:
-                logger.info("Analyzing player statistics...")
-                stats_storylines = await self._analyze_player_statistics(players)
-                all_storylines.extend(stats_storylines)
-            
-            logger.info(f"Generated {len(all_storylines)} player performance storylines from separate component analysis")
-            return all_storylines
+            return storylines
             
         except Exception as e:
-            logger.error(f"Error analyzing player performance: {e}")
+            logger.error(f"Error analyzing player performance with CoT: {e}")
             return ["Player performance analysis based on available data", "Individual contributions from the match data"]

@@ -1,49 +1,126 @@
 import logging
+import os
 from typing import Dict, Any
 from dotenv import load_dotenv
 
-from agents import Agent, Runner
+# LangChain imports
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain.schema import BaseOutputParser
+from langchain.schema.output_parser import OutputParserException
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
+
+class ArticleOutputParser(BaseOutputParser):
+    """Custom output parser for parsing and validating article output"""
+    
+    def parse(self, text: str) -> str:
+        """Parse LLM output and return cleaned article text"""
+        # Remove potential markdown formatting
+        text = text.strip()
+        if text.startswith("```") and text.endswith("```"):
+            text = text[3:-3].strip()
+        
+        return text
+    
+    @property
+    def _type(self) -> str:
+        return "article_output_parser"
+
 class WriterAgent:
     """
     AI agent that generates complete football articles using collected data and research insights.
+    Uses LangChain for LLM orchestration and prompt management.
     """
     def __init__(self, config: Dict[str, Any] = None):
-        """Initialize the Writer Agent with configuration."""
+        """Initialize the Writer Agent with LangChain configuration."""
         self.config = config or {}
         
-        # Initialize the writer agent
-        self.agent = Agent(
-            instructions="""You are a professional sports journalist specializing in writing engaging football game recaps.
-            Your task is to create compelling, well-structured articles that capture the excitement and significance of football matches.
-            
-            Guidelines:
-            - Write in a professional, engaging tone
-            - Use only the provided data - do not invent statistics or quotes
-            - Follow the exact structure provided in the template
-            - Maintain consistency in style and tone
-            - Focus on the most important storylines and moments
-            - Create articles that are 400-600 words in length            
-            
-            Always return complete, well-formatted articles ready for publication.""",
-            name="WriterAgent",
-            output_type=str,
+        # Initialize LangChain components
+        self.llm = ChatOpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
             model=self.config.get("model", "gpt-4o"),
+            temperature=self.config.get("temperature", 0.7),
+            max_tokens=self.config.get("max_tokens", 2000)
         )
         
-        logger.info("Writer Agent initialized successfully")
+        # Initialize custom output parser
+        self.output_parser = ArticleOutputParser()
+        
+        # Create the prompt template
+        self.prompt_template = PromptTemplate(
+            input_variables=["system_instructions", "game_info", "storylines", "historical_context", "player_performance", "template"],
+            template="""You are a professional sports journalist specializing in writing engaging football game recaps.
+        Your task is to create compelling, well-structured articles that capture the excitement and significance of football matches.
+
+        Guidelines:
+        - Write in a professional, engaging tone
+        - Use only the provided data - do not invent statistics or quotes
+        - Follow the exact structure provided in the template
+        - Maintain consistency in style and tone
+        - Focus on the most important storylines and moments
+        - Create articles that are 400-600 words in length
+
+        Always return complete, well-formatted articles ready for publication.
+
+        {system_instructions}
+
+        Template for game recap:
+        {template}
+
+        CURRENT MATCH DATA (Primary Focus):
+        - Game Info: {game_info}
+        - Storylines (Current Match Events): {storylines}
+        - Player Performance (Current Match Events): {player_performance}
+
+        HISTORICAL/BACKGROUND DATA (Context Only):
+        - Historical Context: {historical_context}
+
+        Please write a complete article following the template structure exactly."""
+        )
+        
+        # Create the LLM chain
+        self.chain = LLMChain(
+            llm=self.llm,
+            prompt=self.prompt_template,
+            output_parser=self.output_parser,
+            verbose=False
+        )
+        
+        logger.info("Writer Agent initialized successfully with LangChain")
 
     async def generate_game_recap(self, game_info: Dict[str, Any], research: Dict[str, Any]) -> str:
-        """Generate a complete football game recap article."""
+        """Generate a complete football game recap article using LangChain."""
         logger.info("Generating game recap article")
         
         try:
-            prompt = self._build_prompt(game_info, research)
-            result = await Runner.run(self.agent, prompt)
-            article = result.final_output_as(str).strip()
+            # Extract research data
+            storylines = research.get("game_analysis", [])
+            historical_context = research.get("historical_context", [])
+            player_performance = research.get("player_performance", [])
+            
+            # Prepare prompt inputs
+            prompt_inputs = {
+                "system_instructions": self._get_detailed_instructions(),
+                "game_info": game_info,
+                "storylines": storylines,
+                "historical_context": historical_context,
+                "player_performance": player_performance,
+                "template": self.get_game_recap_template()
+            }
+            
+            # Use LangChain to generate article
+            result = await self.chain.ainvoke(prompt_inputs)
+            # Extract text from LangChain result
+            if isinstance(result, dict):
+                article = result.get('text', str(result)).strip()
+            else:
+                article = str(result).strip()
+            
+            # Validate the article
             self._validate_article(article)
             return article
             
@@ -51,17 +128,9 @@ class WriterAgent:
             logger.error(f"Error generating game recap: {e}")
             raise
 
-    def _build_prompt(self, game_info, research) -> str:
-        logger.info(f"Building prompt for game recap")
-        logger.info(f"Game Info: {game_info}")
-        logger.info(f"Research Insights: {research}")
-
-        # Extract different types of research data
-        storylines = research.get("game_analysis", [])  # Current match events only
-        historical_context = research.get("historical_context", [])  # Background information only
-        player_performance = research.get("player_performance", [])  # Current match player events only
-
-        prompt = f"""
+    def _get_detailed_instructions(self) -> str:
+        """Get detailed instructions for article generation"""
+        return """
             Write a professional football game recap article (400-600 words) with the following structure:
             - Headline
             - Introduction (context, teams, stakes)
@@ -69,15 +138,9 @@ class WriterAgent:
             - Conclusion (summary, implications)
             Include [Headline, Introduction, Body, Conclusion] in the article to make it easier for the junior writer to understand the structure.
 
-            Template for game recap:
-            {self.get_game_recap_template()}
-
             CRITICAL: You must clearly distinguish between CURRENT MATCH DATA and HISTORICAL/BACKGROUND DATA.
 
             CURRENT MATCH DATA (Primary Focus - This is what actually happened in this specific game):
-            - Game Info: {game_info}
-            - Storylines (Current Match Events): {storylines}
-            - Player Performance (Current Match Events): {player_performance}
             - This contains the actual events, scores, players, and moments from THIS SPECIFIC MATCH
             - Use this as your main source for describing what happened in the game
             - Focus on: goals, cards, substitutions, key moments, final score, venue, date
@@ -90,7 +153,6 @@ class WriterAgent:
             - Note that "assist" could both mean substitution and goal assist, make sure to check the "type" field to determine if it is a substitution or a goal assist
 
             HISTORICAL/BACKGROUND DATA (Context Only - Use sparingly for introduction/context):
-            - Historical Context: {historical_context}
             - This contains background information, historical context, and analysis
             - Use this ONLY for:
               * Brief introduction context (team history, league position, etc.)
@@ -142,7 +204,6 @@ class WriterAgent:
             - CRITICAL: For substitutions, only mention them when you have complete information (both who went off AND who came on)
             - CRITICAL: If substitution data is incomplete (missing "assist" field), do not mention the substitution at all
             """
-        return prompt
     
     def get_game_recap_template(self):
         return """

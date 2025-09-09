@@ -11,8 +11,10 @@
 import logging
 import asyncio
 import time
+import hashlib
+import json
 from typing import Dict, List, Optional, Any, Tuple, Union
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
 from supabase import create_client, Client
@@ -53,9 +55,220 @@ class SoccerDatabase:
         self._performance_stats = {
             "total_queries": 0,
             "total_time": 0.0,
-            "concurrent_queries": 0
+            "concurrent_queries": 0,
+            "cache_hits": 0,
+            "cache_misses": 0
         }
+        # Cache configuration
+        self.cache_ttl_hours = 24  # Cache TTL in hours
+        self.max_cache_size = 1000  # Maximum number of cache entries (LRU eviction when exceeded)
         logger.info(f"Initialized SoccerDatabase with {max_workers} worker threads for async operations")
+
+    # ---------- Query Cache Methods ----------
+    
+    def _generate_cache_key(self, parsed_query: Any) -> str:
+        """Generate a SHA256 hash for cache lookup based on query components."""
+        try:
+            # Create a dictionary with all relevant query components
+            query_dict = {
+                "entities": [(e.name, e.entity_type.value, e.confidence) for e in parsed_query.entities],
+                "time_context": parsed_query.time_context.value,
+                "comparison_type": parsed_query.comparison_type.value if parsed_query.comparison_type else None,
+                "filters": parsed_query.filters,
+                "statistic_requested": parsed_query.statistic_requested,
+                "statistics_requested": parsed_query.statistics_requested,
+                "query_intent": parsed_query.query_intent
+            }
+            
+            # Convert to JSON string and create SHA256 hash (matching table schema)
+            query_json = json.dumps(query_dict, sort_keys=True)
+            cache_hash = hashlib.sha256(query_json.encode()).hexdigest()
+            
+            logger.debug(f"Generated cache hash: {cache_hash} for query: {parsed_query.original_query}")
+            return cache_hash
+            
+        except Exception as e:
+            logger.warning(f"Failed to generate cache hash: {e}")
+            # Fallback to simple hash of original query
+            return hashlib.sha256(parsed_query.original_query.encode()).hexdigest()
+    
+    def _get_cached_result(self, cache_hash: str) -> Optional[Dict[str, Any]]:
+        """Retrieve cached result from cache table using the new schema."""
+        try:
+            # Query cache table using query_hash field
+            response = self.supabase.table('query_cache').select('*').eq('query_hash', cache_hash).execute()
+            
+            if response.data:
+                cache_entry = response.data[0]
+                
+                # Check if cache entry is still valid (expires_at field)
+                expires_at = datetime.fromisoformat(cache_entry['expires_at'].replace('Z', '+00:00'))
+                
+                if datetime.now(expires_at.tzinfo) < expires_at:
+                    self._performance_stats["cache_hits"] += 1
+                    logger.info(f"Cache hit for hash: {cache_hash}")
+                    
+                    # Update last_accessed_at and increment hit_count for LRU tracking
+                    try:
+                        current_hit_count = cache_entry.get('hit_count', 0)
+                        self.supabase.table('query_cache').update({
+                            'last_accessed_at': datetime.utcnow().isoformat(),
+                            'hit_count': current_hit_count + 1
+                        }).eq('query_hash', cache_hash).execute()
+                    except Exception as e:
+                        logger.warning(f"Failed to update cache access stats for hash {cache_hash}: {e}")
+                    
+                    # Parse and return the cached result (JSONB format)
+                    try:
+                        cached_data = cache_entry['result_data']  # Already parsed as dict from JSONB
+                        # Ensure cached flag is set correctly
+                        result_data = {
+                            "status": "success",
+                            "cached": True,
+                            "cache_hash": cache_hash,
+                            "confidence_score": float(cache_entry.get('confidence_score', 0.9)),
+                            "hit_count": cache_entry.get('hit_count', 0) + 1,
+                            **cached_data
+                        }
+                        # Override any cached=False that might be in cached_data
+                        result_data["cached"] = True
+                        return result_data
+                    except Exception as e:
+                        logger.error(f"Failed to process cached data: {e}")
+                        # Delete invalid cache entry
+                        self.supabase.table('query_cache').delete().eq('query_hash', cache_hash).execute()
+                        return None
+                else:
+                    logger.info(f"Cache entry expired for hash: {cache_hash}")
+                    # Delete expired cache entry
+                    self.supabase.table('query_cache').delete().eq('query_hash', cache_hash).execute()
+                    return None
+            else:
+                self._performance_stats["cache_misses"] += 1
+                logger.debug(f"Cache miss for hash: {cache_hash}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error retrieving cached result: {e}")
+            self._performance_stats["cache_misses"] += 1
+            return None
+    
+    def _store_cached_result(self, cache_hash: str, result: Dict[str, Any], original_query: str) -> None:
+        """Store query result in cache table with new schema and LRU management."""
+        try:
+            # Check cache size and perform LRU eviction if necessary
+            self._enforce_cache_size_limit()
+            
+            # Calculate expiration time based on TTL
+            expires_at = (datetime.utcnow() + timedelta(hours=self.cache_ttl_hours)).isoformat()
+            current_time = datetime.utcnow().isoformat()
+            
+            # Calculate confidence score based on result quality
+            confidence_score = self._calculate_confidence_score(result)
+            
+            # Prepare cache entry with new schema
+            cache_data = {
+                "query_hash": cache_hash,
+                "query_text": original_query,
+                "result_data": result,  # JSONB format - Supabase handles conversion
+                "confidence_score": confidence_score,
+                "expires_at": expires_at,
+                "hit_count": 0,  # Initialize hit count
+                "created_at": current_time,
+                "last_accessed_at": current_time
+            }
+            
+            # Insert cache entry (upsert on conflict with query_hash)
+            response = self.supabase.table('query_cache').upsert(cache_data, on_conflict="query_hash").execute()
+            
+            if response.data:
+                logger.info(f"Cached result for hash: {cache_hash}")
+            else:
+                logger.warning(f"Failed to cache result for hash: {cache_hash}")
+                
+        except Exception as e:
+            logger.error(f"Error storing cached result: {e}")
+    
+    def _calculate_confidence_score(self, result: Dict[str, Any]) -> float:
+        """Calculate confidence score for cache entry based on result quality."""
+        try:
+            base_score = 0.8
+            
+            # Adjust based on result status
+            if result.get("status") == "success":
+                base_score += 0.1
+            elif result.get("status") == "error":
+                base_score = 0.3
+            
+            # Adjust based on data availability
+            if result.get("value") is not None and result.get("value") > 0:
+                base_score += 0.05
+            
+            # Adjust based on match count (more matches = higher confidence)
+            matches = result.get("matches", 0)
+            if matches > 10:
+                base_score += 0.05
+            elif matches == 0:
+                base_score -= 0.1
+            
+            return min(0.99, max(0.01, base_score))
+            
+        except Exception:
+            return 0.8  # Default confidence score
+    
+    def _enforce_cache_size_limit(self) -> int:
+        """Enforce cache size limit using LRU eviction strategy with new schema."""
+        try:
+            # Get current cache size
+            count_response = self.supabase.table('query_cache').select('id', count='exact').execute()
+            current_size = count_response.count if hasattr(count_response, 'count') else len(count_response.data or [])
+            
+            if current_size >= self.max_cache_size:
+                # Calculate how many entries to evict (remove 10% of max size to avoid frequent evictions)
+                entries_to_evict = max(1, int(self.max_cache_size * 0.1))
+                
+                logger.info(f"Cache size ({current_size}) exceeds limit ({self.max_cache_size}). Evicting {entries_to_evict} LRU entries.")
+                
+                # Get least recently used entries (prioritize by last_accessed_at, then by hit_count)
+                lru_response = self.supabase.table('query_cache').select('id, query_hash, last_accessed_at, hit_count').order('last_accessed_at', desc=False).order('hit_count', desc=False).limit(entries_to_evict).execute()
+                
+                if lru_response.data:
+                    # Extract IDs to delete
+                    ids_to_delete = [entry['id'] for entry in lru_response.data]
+                    
+                    # Delete LRU entries using ID
+                    delete_response = self.supabase.table('query_cache').delete().in_('id', ids_to_delete).execute()
+                    
+                    deleted_count = len(delete_response.data) if delete_response.data else 0
+                    logger.info(f"Evicted {deleted_count} LRU cache entries")
+                    
+                    return deleted_count
+                else:
+                    logger.warning("Could not retrieve LRU entries for eviction")
+                    return 0
+            
+            return 0
+            
+        except Exception as e:
+            logger.error(f"Error enforcing cache size limit: {e}")
+            return 0
+    
+    def _cleanup_expired_cache(self) -> int:
+        """Clean up expired cache entries using expires_at field."""
+        try:
+            # Delete entries where expires_at is in the past
+            current_time = datetime.utcnow().isoformat()
+            response = self.supabase.table('query_cache').delete().lt('expires_at', current_time).execute()
+            
+            deleted_count = len(response.data) if response.data else 0
+            if deleted_count > 0:
+                logger.info(f"Cleaned up {deleted_count} expired cache entries")
+            
+            return deleted_count
+            
+        except Exception as e:
+            logger.error(f"Error cleaning up expired cache: {e}")
+            return 0
 
     # ---------- Basic entity getters (cached) ----------
 
@@ -230,12 +443,10 @@ class SoccerDatabase:
                     },
                 }
             
-            # 计算统计值
             value = 0
             for r in rows:
                 stat_value = r.get(stat)
                 if stat_value is not None:
-                    # 处理数值类型
                     if isinstance(stat_value, (int, float)):
                         value += stat_value
                     elif isinstance(stat_value, str):
@@ -344,10 +555,23 @@ class SoccerDatabase:
             
             # First, we need to get the team_id from the teams table
             try:
+                # Try exact match first
                 team_response = self.supabase.table("teams").select("id, name").eq("name", team_name).execute()
                 if not team_response.data:
-                    logger.warning(f"Team '{team_name}' not found in teams table")
-                    return []
+                    # Try fuzzy match with ilike (case-insensitive partial match)
+                    team_response = self.supabase.table("teams").select("id, name").ilike("name", f"%{team_name}%").execute()
+                    if not team_response.data:
+                        logger.warning(f"Team '{team_name}' not found in teams table (tried exact and fuzzy match)")
+                        
+                        # Debug: Show available teams for troubleshooting
+                        try:
+                            all_teams = self.supabase.table("teams").select("id, name").limit(20).execute()
+                            available_teams = [team['name'] for team in (all_teams.data or [])]
+                            logger.info(f"Available teams in database: {available_teams}")
+                        except Exception as debug_e:
+                            logger.error(f"Could not fetch available teams for debugging: {debug_e}")
+                        
+                        return []
                 
                 team_id = team_response.data[0]['id']
                 
@@ -394,34 +618,56 @@ class SoccerDatabase:
         default_season_label: str = "2024-25"
     ) -> Dict[str, Any]:
         """
-        Execute a minimal, happy-path query directly from a ParsedSoccerQuery.
-        Scope: single player stat lookup (goals/assists/minutes_played), with season & venue & last N support.
+        Execute a query from a ParsedSoccerQuery with cache-first approach.
+        First checks cache table, then executes query and stores result if not cached.
         """
         try:
+            # Generate cache hash for this query
+            cache_hash = self._generate_cache_key(parsed)
+            
+            # Try to get cached result first
+            cached_result = self._get_cached_result(cache_hash)
+            if cached_result:
+                logger.info(f"Returning cached result for query: {parsed.original_query}")
+                return cached_result
+            
+            # Cache miss - execute the actual query
+            logger.info(f"Cache miss - executing query: {parsed.original_query}")
+            
             # Check if this is a match query (contains "vs", "versus", "match")
             if self._is_match_query(parsed):
-                return self._handle_match_query(parsed, default_season_label)
-            
-            # Pick a player or team entity
-            player_name = None
-            team_name = None
-            for e in parsed.entities:
-                if getattr(e, "entity_type", None):
-                    if str(e.entity_type.value) == "player":
-                        player_name = e.name
-                    elif str(e.entity_type.value) == "team":
-                        team_name = e.name
-            
-            # Handle player queries
-            if player_name:
-                return self._handle_player_query(parsed, player_name, player_name_to_id, default_season_label)
-            
-            # Handle team queries
-            elif team_name:
-                return self._handle_team_query(parsed, team_name, default_season_label)
-            
+                result = self._handle_match_query(parsed, default_season_label)
             else:
-                return {"status": "not_supported", "reason": "no_player_or_team_found"}
+                # Pick a player or team entity
+                player_name = None
+                team_name = None
+                for e in parsed.entities:
+                    if getattr(e, "entity_type", None):
+                        if str(e.entity_type.value) == "player":
+                            player_name = e.name
+                        elif str(e.entity_type.value) == "team":
+                            team_name = e.name
+                
+                # Handle player queries
+                if player_name:
+                    result = self._handle_player_query(parsed, player_name, player_name_to_id, default_season_label)
+                # Handle team queries
+                elif team_name:
+                    result = self._handle_team_query(parsed, team_name, default_season_label)
+                else:
+                    result = {"status": "not_supported", "reason": "no_player_or_team_found"}
+            
+            # Store successful results in cache (avoid caching errors)
+            if result.get("status") == "success":
+                # Add cache metadata to result
+                result["cached"] = False
+                result["cache_hash"] = cache_hash
+                
+                # Store in cache for future queries
+                self._store_cached_result(cache_hash, result, parsed.original_query)
+                logger.info(f"Stored result in cache for query: {parsed.original_query}")
+            
+            return result
 
         except Exception as e:
             logger.exception("Error in run_from_parsed")
@@ -639,6 +885,15 @@ class SoccerDatabase:
             pid = players[0].id if players else None
 
         if not pid:
+            # Debug: Show available players for troubleshooting
+            logger.warning(f"Player '{player_name}' not found in database")
+            try:
+                all_players = self.supabase.table("players").select("id, name").limit(20).execute()
+                available_players = [player['name'] for player in (all_players.data or [])]
+                logger.info(f"Available players in database: {available_players}")
+            except Exception as debug_e:
+                logger.error(f"Could not fetch available players for debugging: {debug_e}")
+            
             return {"status": "no_data", "reason": "player_not_found"}
 
         # Map statistics - extend statistical type mapping
@@ -1031,6 +1286,14 @@ class SoccerDatabase:
             stats["average_query_time"] = stats["total_time"] / stats["total_queries"]
         else:
             stats["average_query_time"] = 0
+        
+        # Add cache hit rate
+        total_cache_requests = stats["cache_hits"] + stats["cache_misses"]
+        if total_cache_requests > 0:
+            stats["cache_hit_rate"] = stats["cache_hits"] / total_cache_requests
+        else:
+            stats["cache_hit_rate"] = 0
+            
         return stats
     
     def reset_performance_stats(self):
@@ -1038,9 +1301,140 @@ class SoccerDatabase:
         self._performance_stats = {
             "total_queries": 0,
             "total_time": 0.0,
-            "concurrent_queries": 0
+            "concurrent_queries": 0,
+            "cache_hits": 0,
+            "cache_misses": 0
         }
         logger.info("Performance statistics reset")
+    
+    def cleanup_cache(self) -> int:
+        """Clean up expired cache entries. Returns number of entries cleaned."""
+        return self._cleanup_expired_cache()
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache-specific statistics using new schema."""
+        try:
+            # Get total cache entries
+            response = self.supabase.table('query_cache').select('id', count='exact').execute()
+            total_entries = response.count if hasattr(response, 'count') else len(response.data or [])
+            
+            # Get expired entries count
+            current_time = datetime.utcnow().isoformat()
+            expired_response = self.supabase.table('query_cache').select('id', count='exact').lt('expires_at', current_time).execute()
+            expired_entries = expired_response.count if hasattr(expired_response, 'count') else len(expired_response.data or [])
+            
+            # Get hit count statistics
+            hit_stats_response = self.supabase.table('query_cache').select('hit_count').execute()
+            hit_counts = [entry.get('hit_count', 0) for entry in (hit_stats_response.data or [])]
+            
+            total_hits_in_cache = sum(hit_counts)
+            avg_hits_per_entry = total_hits_in_cache / max(1, total_entries)
+            
+            # Calculate cache utilization
+            cache_utilization = (total_entries / self.max_cache_size) * 100 if self.max_cache_size > 0 else 0
+            
+            return {
+                "total_cache_entries": total_entries,
+                "max_cache_size": self.max_cache_size,
+                "cache_utilization_percent": round(cache_utilization, 2),
+                "expired_entries": expired_entries,
+                "cache_ttl_hours": self.cache_ttl_hours,
+                "cache_hits": self._performance_stats["cache_hits"],
+                "cache_misses": self._performance_stats["cache_misses"],
+                "cache_hit_rate": self._performance_stats["cache_hits"] / max(1, self._performance_stats["cache_hits"] + self._performance_stats["cache_misses"]),
+                "total_hits_in_cache": total_hits_in_cache,
+                "avg_hits_per_entry": round(avg_hits_per_entry, 2),
+                "lru_eviction_enabled": True,
+                "entries_until_eviction": max(0, self.max_cache_size - total_entries)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting cache stats: {e}")
+            return {
+                "error": str(e),
+                "cache_hits": self._performance_stats["cache_hits"],
+                "cache_misses": self._performance_stats["cache_misses"]
+            }
+    
+    def clear_cache(self) -> int:
+        """Clear all cache entries. Returns number of entries cleared."""
+        try:
+            response = self.supabase.table('query_cache').delete().neq('cache_key', '').execute()
+            cleared_count = len(response.data) if response.data else 0
+            logger.info(f"Cleared {cleared_count} cache entries")
+            return cleared_count
+        except Exception as e:
+            logger.error(f"Error clearing cache: {e}")
+            return 0
+    
+    def set_cache_config(self, max_size: Optional[int] = None, ttl_hours: Optional[int] = None) -> Dict[str, Any]:
+        """Configure cache settings."""
+        old_config = {
+            "max_cache_size": self.max_cache_size,
+            "cache_ttl_hours": self.cache_ttl_hours
+        }
+        
+        if max_size is not None:
+            if max_size <= 0:
+                raise ValueError("max_size must be greater than 0")
+            self.max_cache_size = max_size
+            logger.info(f"Updated max cache size to {max_size}")
+        
+        if ttl_hours is not None:
+            if ttl_hours <= 0:
+                raise ValueError("ttl_hours must be greater than 0")
+            self.cache_ttl_hours = ttl_hours
+            logger.info(f"Updated cache TTL to {ttl_hours} hours")
+        
+        new_config = {
+            "max_cache_size": self.max_cache_size,
+            "cache_ttl_hours": self.cache_ttl_hours
+        }
+        
+        return {
+            "old_config": old_config,
+            "new_config": new_config,
+            "changes_applied": max_size is not None or ttl_hours is not None
+        }
+    
+    def force_lru_eviction(self, target_size: Optional[int] = None) -> int:
+        """Manually trigger LRU eviction to reduce cache to target size."""
+        try:
+            if target_size is None:
+                target_size = int(self.max_cache_size * 0.8)  # Reduce to 80% of max size
+            
+            # Get current cache size
+            count_response = self.supabase.table('query_cache').select('id', count='exact').execute()
+            current_size = count_response.count if hasattr(count_response, 'count') else len(count_response.data or [])
+            
+            if current_size <= target_size:
+                logger.info(f"Cache size ({current_size}) is already at or below target ({target_size})")
+                return 0
+            
+            entries_to_evict = current_size - target_size
+            logger.info(f"Force evicting {entries_to_evict} LRU entries to reach target size {target_size}")
+            
+            # Get least recently used entries (prioritize by last_accessed_at, then by hit_count)
+            lru_response = self.supabase.table('query_cache').select('id, query_hash, last_accessed_at, hit_count').order('last_accessed_at', desc=False).order('hit_count', desc=False).limit(entries_to_evict).execute()
+            
+            if lru_response.data:
+                # Extract IDs to delete
+                ids_to_delete = [entry['id'] for entry in lru_response.data]
+                
+                # Delete LRU entries
+                delete_response = self.supabase.table('query_cache').delete().in_('id', ids_to_delete).execute()
+                
+                deleted_count = len(delete_response.data) if delete_response.data else 0
+                logger.info(f"Force evicted {deleted_count} LRU cache entries")
+                
+                return deleted_count
+            else:
+                logger.warning("Could not retrieve LRU entries for force eviction")
+                return 0
+                
+        except Exception as e:
+            logger.error(f"Error in force LRU eviction: {e}")
+            return 0
     
     async def run_from_parsed_async(
         self,
@@ -1048,46 +1442,77 @@ class SoccerDatabase:
         player_name_to_id: Optional[Dict[str, str]] = None,
         default_season_label: str = "2024-25"
     ) -> Dict[str, Any]:
-        """Async version of run_from_parsed with enhanced performance."""
+        """Async version of run_from_parsed with cache-first approach and enhanced performance."""
         start_time = time.time()
         
         try:
+            # Generate cache hash for this query
+            cache_hash = self._generate_cache_key(parsed)
+            
+            # Try to get cached result first (run in executor to avoid blocking)
+            loop = asyncio.get_event_loop()
+            cached_result = await loop.run_in_executor(
+                self.executor,
+                self._get_cached_result,
+                cache_hash
+            )
+            
+            if cached_result:
+                execution_time = time.time() - start_time
+                logger.info(f"Returning cached result for query in {execution_time:.3f}s: {parsed.original_query}")
+                return cached_result
+            
+            # Cache miss - execute the actual query
+            logger.info(f"Cache miss - executing async query: {parsed.original_query}")
+            
             # Check if this is a match query (contains "vs", "versus", "match")
             if self._is_match_query(parsed):
-                loop = asyncio.get_event_loop()
                 result = await loop.run_in_executor(
                     self.executor, 
                     self._handle_match_query,
                     parsed, default_season_label
                 )
-                return result
-            
-            # Pick a player or team entity
-            player_name = None
-            team_name = None
-            for e in parsed.entities:
-                if getattr(e, "entity_type", None):
-                    if str(e.entity_type.value) == "player":
-                        player_name = e.name
-                    elif str(e.entity_type.value) == "team":
-                        team_name = e.name
-            
-            # Handle player queries with async
-            if player_name:
-                result = await self._handle_player_query_async(
-                    parsed, player_name, player_name_to_id, default_season_label
-                )
-                return result
-            
-            # Handle team queries with async
-            elif team_name:
-                result = await self._handle_team_query_async(
-                    parsed, team_name, default_season_label
-                )
-                return result
-            
             else:
-                return {"status": "not_supported", "reason": "no_player_or_team_found"}
+                # Pick a player or team entity
+                player_name = None
+                team_name = None
+                for e in parsed.entities:
+                    if getattr(e, "entity_type", None):
+                        if str(e.entity_type.value) == "player":
+                            player_name = e.name
+                        elif str(e.entity_type.value) == "team":
+                            team_name = e.name
+                
+                # Handle player queries with async
+                if player_name:
+                    result = await self._handle_player_query_async(
+                        parsed, player_name, player_name_to_id, default_season_label
+                    )
+                # Handle team queries with async
+                elif team_name:
+                    result = await self._handle_team_query_async(
+                        parsed, team_name, default_season_label
+                    )
+                else:
+                    result = {"status": "not_supported", "reason": "no_player_or_team_found"}
+            
+            # Store successful results in cache (avoid caching errors)
+            if result.get("status") == "success":
+                # Add cache metadata to result
+                result["cached"] = False
+                result["cache_hash"] = cache_hash
+                
+                # Store in cache for future queries (run in executor to avoid blocking)
+                await loop.run_in_executor(
+                    self.executor,
+                    self._store_cached_result,
+                    cache_hash, result, parsed.original_query
+                )
+                
+                execution_time = time.time() - start_time
+                logger.info(f"Stored result in cache after {execution_time:.3f}s for query: {parsed.original_query}")
+            
+            return result
 
         except Exception as e:
             execution_time = time.time() - start_time
@@ -1373,7 +1798,45 @@ class SoccerDatabase:
         # Execute all requests concurrently
         concurrent_results = await self.get_multiple_player_stats_concurrent(requests)
         
-        # Calculate team totals
+        # Check if this is a ranking query
+        filters = getattr(parsed, 'filters', {})
+        ranking_info = filters.get('ranking') if isinstance(filters, dict) else None
+        
+        if ranking_info and ranking_info.get('type') == 'ranking':
+            # Return individual player rankings instead of team total
+            player_stats = []
+            for i, result in enumerate(concurrent_results):
+                if isinstance(result, dict) and not ("status" in result and result["status"] == "error"):
+                    player_name = team_players[i].get('name', f"Player {team_players[i].get('id')}")
+                    player_stats.append({
+                        "player_name": player_name,
+                        "player_id": team_players[i].get('id'),
+                        "value": result.get("value", 0),
+                        "matches": result.get("matches", 0)
+                    })
+            
+            # Sort by value (descending for "most", ascending for "least")
+            direction = ranking_info.get('direction', 'highest')
+            reverse_sort = (direction == 'highest')
+            player_stats.sort(key=lambda x: x['value'], reverse=reverse_sort)
+            
+            # Get top player(s)
+            if player_stats:
+                top_player = player_stats[0]
+                return {
+                    "status": "success",
+                    "query_type": "team_player_ranking",
+                    "stat": stat,
+                    "team_name": team_name,
+                    "ranking_type": ranking_info.get('keyword', 'most'),
+                    "top_player": top_player,
+                    "all_players": player_stats[:10],  # Top 10
+                    "player_count": len(team_players)
+                }
+            else:
+                return {"status": "no_data", "reason": "no_player_stats_found"}
+        
+        # Default: Calculate team totals (for non-ranking queries)
         total_value = 0
         total_matches = 0
         

@@ -9,6 +9,22 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 class Editor:
+    async def _safe_runner_call(self, agent, prompt: str, operation_name: str, timeout: float = 45.0):
+        """Make a safe Runner.run call with timeout."""
+        try:
+            import asyncio
+            result = await asyncio.wait_for(
+                Runner.run(agent, prompt),
+                timeout=timeout
+            )
+            return result
+        except asyncio.TimeoutError:
+            logger.error(f"{operation_name} timed out after {timeout} seconds")
+            raise asyncio.TimeoutError(f"{operation_name} operation timed out")
+        except Exception as e:
+            logger.error(f"Error in {operation_name}: {e}")
+            raise e
+
     def __init__(self, config: dict):
         self.config = config or {}
         
@@ -713,12 +729,23 @@ class Editor:
             Please apply all the corrections identified in the validation results and return the final corrected article.
             """
             
-            # Run final editing
-            result = await Runner.run(self.final_editor_agent, prompt)
-            corrected_text = result.final_output_as(str).strip()
-            
-            logger.info("Comprehensive fact-checking completed successfully")
-            return corrected_text
+            # Run final editing with safe timeout
+            try:
+                result = await self._safe_runner_call(
+                    self.final_editor_agent, 
+                    prompt, 
+                    "final editing", 
+                    timeout=60.0
+                )
+                corrected_text = result.final_output_as(str).strip()
+                
+                logger.info("Comprehensive fact-checking completed successfully")
+                return corrected_text
+                
+            except asyncio.TimeoutError:
+                logger.error("Final editing timed out after 60 seconds")
+                # Return original text with a note about timeout
+                return f"{text}\n\n[Note: Automated fact-checking timed out - article returned as-is]"
             
         except Exception as e:
             logger.error(f"Error during fact-checking: {e}")
@@ -898,7 +925,7 @@ class Editor:
             Please validate the article for score and match process errors.
             """
             
-            result = await Runner.run(self.score_process_agent, prompt)
+            result = await self._safe_runner_call(self.score_process_agent, prompt, "score process validation")
             return json.loads(result.final_output_as(str))
         except Exception as e:
             logger.error(f"Error in score process validation: {e}")
@@ -919,7 +946,7 @@ class Editor:
             Please validate the article for player performance errors.
             """
             
-            result = await Runner.run(self.player_performance_agent, prompt)
+            result = await self._safe_runner_call(self.player_performance_agent, prompt, "player performance validation")
             return json.loads(result.final_output_as(str))
         except Exception as e:
             logger.error(f"Error in player performance validation: {e}")
@@ -961,7 +988,7 @@ class Editor:
             Please validate the article for statistics errors.
             """
             
-            result = await Runner.run(self.statistics_agent, prompt)
+            result = await self._safe_runner_call(self.statistics_agent, prompt, "statistics validation")
             return json.loads(result.final_output_as(str))
         except Exception as e:
             logger.error(f"Error in statistics validation: {e}")

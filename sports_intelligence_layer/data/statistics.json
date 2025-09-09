@@ -1,9 +1,12 @@
 {
   "goals": ["goal", "goals", "scored", "scoring", "goalscorer"],
   "assists": ["assist", "assists", "assisted", "assisting"],
+  "yellow_cards": ["yellow card", "yellow cards", "yellows", "booking", "bookings", "booked"],
+  "red_cards": ["red card", "red cards", "reds", "sent off", "dismissal", "dismissals"],
   "goal_contributions": ["g/a", "g\\/a", "goals and assists", "goal contributions", "goal contribution"],
   "clean_sheets": ["clean sheet", "clean sheets", "shutout", "shutouts"],
-  "pass_completion": ["pass completion", "passing accuracy", "pass rate"],
+  "passes": ["pass", "passes", "passing"],
+  "pass_completion": ["pass completion", "passing accuracy", "pass rate", "pass acc"],
   "possession": ["possession", "ball possession"],
   "shots": ["shot", "shots", "shooting"],
   "tackles": ["tackle", "tackles", "tackling"],

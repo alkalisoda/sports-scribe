@@ -161,15 +161,15 @@ class SoccerQueryParser:
         for stat_name, pattern in self.stat_patterns.items():
             self.compiled_stat_patterns[stat_name] = re.compile(pattern, re.IGNORECASE)
         
-        # Create a fast lookup cache for common statistics
-        self._stat_keyword_cache = {}
+        # Create a fast lookup dictionary for common statistics
+        self._stat_keyword_lookup = {}
         for stat_name, pattern in self.stat_patterns.items():
             # Extract keywords from pattern for fast preliminary check
             keywords = self._extract_keywords_from_pattern(pattern)
             for keyword in keywords:
-                if keyword not in self._stat_keyword_cache:
-                    self._stat_keyword_cache[keyword] = []
-                self._stat_keyword_cache[keyword].append(stat_name)
+                if keyword not in self._stat_keyword_lookup:
+                    self._stat_keyword_lookup[keyword] = []
+                self._stat_keyword_lookup[keyword].append(stat_name)
         
         # Time patterns - pre-compile for performance
         time_pattern_strings = {
@@ -209,8 +209,8 @@ class SoccerQueryParser:
             'comparison_keywords': re.compile(r'\b(?:compare|better|worse|than)\b', re.IGNORECASE)
         }
         
-        # Cache for query normalization
-        self._normalization_cache = {}
+        # Dictionary for query normalization
+        self._normalization_lookup = {}
         
     def _extract_keywords_from_pattern(self, pattern: str) -> List[str]:
         """Extract keywords from regex pattern for fast lookup."""
@@ -416,10 +416,15 @@ class SoccerQueryParser:
         found_multi_pattern = False
         
         # Check for conjunctive patterns first
-        for pattern in conjunctive_patterns:
+        best_match_stats = []
+        best_match_count = 0
+        
+        for i, pattern in enumerate(conjunctive_patterns, 1):
+            self.logger.info(f"Testing conjunctive pattern {i}: {pattern}")
             matches = re.finditer(pattern, query_lower)
             for match in matches:
                 potential_stats = [g for g in match.groups() if g]
+                self.logger.info(f"   Found match groups: {potential_stats}")
                 matched_stats = []
                 for potential_stat in potential_stats:
                     # Check if this potential stat matches any known stat pattern
@@ -431,9 +436,20 @@ class SoccerQueryParser:
                                 break
                 
                 if len(matched_stats) >= 2:
-                    found_multi_pattern = True
-                    statistics.extend(matched_stats)
-                    self.logger.info(f"Found multiple statistics via conjunctive pattern: {matched_stats}")
+                    # Keep the best match (longest list of statistics)
+                    if len(matched_stats) > best_match_count:
+                        best_match_stats = matched_stats.copy()
+                        best_match_count = len(matched_stats)
+                        self.logger.info(f"New best match: {matched_stats} (count: {len(matched_stats)})")
+                    elif len(matched_stats) == best_match_count and matched_stats != best_match_stats:
+                        self.logger.info(f"Equal match found: {matched_stats}, keeping first one")
+        
+        # Use the best match found
+        if best_match_stats:
+            found_multi_pattern = True
+            statistics.extend(best_match_stats)
+            self.logger.info(f"Final multiple statistics from conjunctive pattern: {best_match_stats}")
+            self.logger.info(f"Current statistics list: {statistics}")
         
         # If we didn't find a multi-pattern, fall back to single statistic detection
         if not found_multi_pattern:
@@ -488,11 +504,11 @@ class SoccerQueryParser:
         query_lower = query.lower()
         query_words = set(query_lower.split())
         
-        # Check if any keywords from our cache appear in the query
+        # Check if any keywords from our lookup appear in the query
         potential_stats = set()
         for word in query_words:
-            if word in self._stat_keyword_cache:
-                potential_stats.update(self._stat_keyword_cache[word])
+            if word in self._stat_keyword_lookup:
+                potential_stats.update(self._stat_keyword_lookup[word])
         
         # If we have potential matches, only check those patterns
         if potential_stats:
