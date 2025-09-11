@@ -2,6 +2,7 @@
 Test suite for the query cache system.
 Tests the core functionality and integration of the Redis-based query cache.
 """
+
 import pytest
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -24,7 +25,9 @@ class TestQueryCache:
     async def test_cache_miss(self):
         """Test cache miss scenario."""
         self.mock_redis_client.get.return_value = None
-        result = await self.query_cache.get_cached_result("SELECT * FROM test", {"id": 1})
+        result = await self.query_cache.get_cached_result(
+            "SELECT * FROM test", {"id": 1}
+        )
         assert result is None
 
     @pytest.mark.asyncio
@@ -149,8 +152,8 @@ class TestRedisConfigManager:
 class TestQueryCacheCreation:
     """Test class for query cache creation function."""
 
-    @patch('src.query_cache.query_cache.REDIS_AVAILABLE', True)
-    @patch('src.query_cache.query_cache.redis_module')
+    @patch("src.query_cache.query_cache.REDIS_AVAILABLE", True)
+    @patch("src.query_cache.query_cache.redis_module")
     def test_create_query_cache_success(self, mock_redis_module):
         """Test successful query cache creation."""
         # Mock Redis module and connection pool
@@ -166,14 +169,14 @@ class TestQueryCacheCreation:
         mock_redis_module.ConnectionPool.assert_called_once()
         mock_redis_module.Redis.assert_called_once()
 
-    @patch('src.query_cache.query_cache.REDIS_AVAILABLE', False)
+    @patch("src.query_cache.query_cache.REDIS_AVAILABLE", False)
     def test_create_query_cache_redis_unavailable(self):
         """Test query cache creation when Redis is unavailable."""
         cache = create_query_cache()
         assert cache is None
 
-    @patch('src.query_cache.query_cache.REDIS_AVAILABLE', True)
-    @patch('src.query_cache.query_cache.redis_module')
+    @patch("src.query_cache.query_cache.REDIS_AVAILABLE", True)
+    @patch("src.query_cache.query_cache.redis_module")
     def test_create_query_cache_connection_error(self, mock_redis_module):
         """Test query cache creation with connection error."""
         mock_redis_module.ConnectionPool.side_effect = Exception("Connection failed")
@@ -198,13 +201,13 @@ class TestIntegration:
             await cache.cache_result("SELECT 1", {}, test_data)
 
             # Note: Result might be cached from previous test runs, so we just test no errors occur
-            result = await cache.get_cached_result("SELECT 1", {})
+            await cache.get_cached_result("SELECT 1", {})
             # Result could be None (miss) or the test_data (hit) - both are valid
 
             # Clean up
             try:
                 await cache.close()
-            except:
+            except Exception:
                 pass  # Ignore cleanup errors in tests
         else:
             # Redis not available, which is acceptable in test environment
@@ -213,14 +216,14 @@ class TestIntegration:
     def test_cache_functionality_end_to_end(self):
         """Test cache functionality works end-to-end."""
         # This test just verifies that the cache system can be used without errors
-        cache = create_query_cache()
+        create_query_cache()  # Test creation doesn't crash
 
         # Verify we can create a QueryCache object directly
         mock_redis = AsyncMock()
         direct_cache = QueryCache(mock_redis)
         assert direct_cache is not None
-        assert hasattr(direct_cache, 'get_cached_result')
-        assert hasattr(direct_cache, 'cache_result')
+        assert hasattr(direct_cache, "get_cached_result")
+        assert hasattr(direct_cache, "cache_result")
 
     def test_query_cache_components_available(self):
         """Test that all query cache components can be imported."""

@@ -2,9 +2,10 @@
 
 ## Overview
 
-The SportsScribe pipeline has been updated to include a new narrative planning step and stylized writing capability, following the flowchart:
+The SportsScribe pipeline has been updated to include a new narrative planning
+step and stylized writing capability, following the flowchart:
 
-```
+```text
 DataCollector → ResearchAgent → NarrativePlanner
                     ↓               ↓
               WriterAgent → StylizedWriter → Editor → Final Article
@@ -13,32 +14,43 @@ DataCollector → ResearchAgent → NarrativePlanner
 ## New Pipeline Flow
 
 ### 1. Data Collection
+
 - **DataCollector**: Gathers raw game data from sports APIs
 - Extracts compact game data format (match_info, events, players, statistics, lineups)
 
 ### 2. Research
+
 - **ResearchAgent**: Analyzes game data and provides contextual insights
 - Generates game analysis, player performance, and historical context
 
 ### 3. Narrative Planning
-- **NarrativePlanner**: Analyzes data and research to select compelling narrative angles
-- Outputs narrative selection with primary narrative, supporting narratives, character arcs, storytelling focus, and social hooks
+
+- **NarrativePlanner**: Analyzes data and research to select compelling
+  narrative angles
+- Outputs narrative selection with primary narrative, supporting narratives,
+  character arcs, storytelling focus, and social hooks
 
 ### 4. Article Generation (Two Paths)
+
 - **WriterAgent**: Generates factual article based on research insights
-- **StylizedWriter**: Transforms factual article using narrative plan to create emotionally engaging content
+- **StylizedWriter**: Transforms factual article using narrative plan to
+  create emotionally engaging content
 
 ### 5. Editing
+
 - **Editor**: Reviews and refines the stylized article for quality and accuracy
 
 ## Key Components
 
 ### NarrativePlanner
+
 - **Purpose**: Selects compelling narrative angles for sports articles
 - **Input**: CompactGameData + ResearchInsights
-- **Output**: NarrativeSelection (primary_narrative, supporting_narratives, character_arcs, storytelling_focus, social_hooks)
+- **Output**: NarrativeSelection (primary_narrative, supporting_narratives,
+  character_arcs, storytelling_focus, social_hooks)
 
 ### StylizedWriter
+
 - **Purpose**: Transforms factual articles into emotionally engaging narratives
 - **Input**: Factual article + NarrativeSelection
 - **Output**: Stylized article with narrative elements
@@ -145,4 +157,4 @@ config = {
 1. **A/B Testing**: Compare factual vs. stylized article performance
 2. **Audience Targeting**: Tailor narratives for specific audience segments
 3. **Multi-language Support**: Generate narratives in different languages
-4. **Performance Metrics**: Track narrative effectiveness over time 
+4. **Performance Metrics**: Track narrative effectiveness over time
