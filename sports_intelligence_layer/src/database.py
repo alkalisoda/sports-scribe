@@ -13,7 +13,7 @@ from functools import lru_cache
 from supabase import create_client, Client
 from .query_cache import query_cache
 
-from ..config.soccer_entities import (
+from config.soccer_entities import (
     Player,
     Team,
     Competition,
