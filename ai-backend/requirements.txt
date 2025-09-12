@@ -4,15 +4,16 @@ python-dotenv>=1.0.0
 requests>=2.28.0
 supabase>=2.0.0
 fastapi>=0.100.0
-chainlit>=1.3.0
+chainlit==1.3.0  # Pin to secure version, avoid vulnerable 2.6.0
 
 # Security updates to fix CVE vulnerabilities
-starlette>=0.37.2  # Fixes CVE-2024-47874 (DoS vulnerability)
+starlette>=0.47.2  # Fixes CVE-2025-54121 (blocking main thread vulnerability)
 python-multipart>=0.0.10  # Fixes CVE-2024-53981 (resource exhaustion)
 
 uvicorn[standard]>=0.23.0
 structlog>=23.0.0
-aiohttp>=3.8.0
+aiohttp>=3.12.14
 beautifulsoup4>=4.12.0
 asyncio-mqtt>=0.13.0
 redis>=6.0.0,<7.0.0
+regex>=2025.2.10  # Fixes ReDoS vulnerability
