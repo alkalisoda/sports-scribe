@@ -58,7 +58,7 @@ class AgentPipeline:
 
         logger.info("AgentPipeline initialized successfully")
 
-    async def generate_game_recap(self, game_id: str) -> dict[str, Any]:
+    async def generate_game_recap(self, game_id: str) -> dict[str, Any]:  # noqa: C901
         """Generate a complete game recap article.
 
         Pipeline: Data Collection → Research → Writer
@@ -533,7 +533,7 @@ class AgentPipeline:
             logger.error(f"[PIPELINE] Error extracting team info: {e}")
             return {"error": f"Failed to extract team info: {e!s}"}
 
-    def extract_player_info(self, raw_game_data: dict[str, Any]) -> dict[str, Any]:
+    def extract_player_info(self, raw_game_data: dict[str, Any]) -> dict[str, Any]:  # noqa: C901
         """Extract player information from raw game data.
 
         Args:
@@ -771,7 +771,7 @@ class AgentPipeline:
             logger.error(f"[PIPELINE] Error collecting enhanced team data: {e}")
             return {"error": f"Failed to collect enhanced team data: {e!s}"}
 
-    async def collect_enhanced_player_data(
+    async def collect_enhanced_player_data(  # noqa: C901, D417
         self, player_info: dict[str, Any], season: str
     ) -> dict[str, Any]:
         """Collect enhanced player data using data collector.

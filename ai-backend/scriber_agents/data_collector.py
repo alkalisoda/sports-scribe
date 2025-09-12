@@ -21,7 +21,7 @@ load_dotenv()
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-currentModel = os.getenv("OPENAI_MODEL")
+current_model = os.getenv("OPENAI_MODEL")
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +187,7 @@ class DataCollectorAgent:
                 logger.error(
                     f"Raw response: {raw_data[:500]}..."
                 )  # Log first 500 chars
-                raise ValueError(f"Invalid JSON response from API: {json_error}")
+                raise ValueError(f"Invalid JSON response from API: {json_error}") from json_error
 
         except Exception as e:
             logger.error(f"Failed to collect game data for game {game_id}: {e}")
@@ -216,7 +216,7 @@ class DataCollectorAgent:
                 logger.error(
                     f"Raw response: {raw_data[:500]}..."
                 )  # Log first 500 chars
-                raise ValueError(f"Invalid JSON response from API: {json_error}")
+                raise ValueError(f"Invalid JSON response from API: {json_error}") from json_error
 
         except Exception as e:
             logger.error(f"Failed to collect team data for team {team_id}: {e}")
@@ -249,7 +249,7 @@ class DataCollectorAgent:
                 logger.error(
                     f"Raw response: {raw_data[:500]}..."
                 )  # Log first 500 chars
-                raise ValueError(f"Invalid JSON response from API: {json_error}")
+                raise ValueError(f"Invalid JSON response from API: {json_error}") from json_error
 
         except Exception as e:
             logger.error(
