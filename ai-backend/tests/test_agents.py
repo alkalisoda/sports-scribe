@@ -5,10 +5,9 @@ Basic test structure for football journalism agents.
 """
 
 import pytest
-from agents.data_collector import DataCollectorAgent
-from agents.editor import EditorAgent
-from agents.researcher import ResearchAgent
-
+from scriber_agents.data_collector import DataCollectorAgent
+from scriber_agents.editor import Editor
+from scriber_agents.researcher import ResearchAgent
 from scriber_agents.writer import WriterAgent
 
 
@@ -89,20 +88,20 @@ class TestEditorAgent:
 
     @pytest.fixture
     def agent(self):
-        return EditorAgent({})
+        return Editor({})
 
     @pytest.mark.asyncio
     async def test_review_article_quality(self, agent):
         """Test reviewing article quality."""
-        pytest.skip("EditorAgent.review_article_quality not yet implemented")
+        pytest.skip("Editor.review_article_quality not yet implemented")
 
     @pytest.mark.asyncio
     async def test_fact_check_article(self, agent):
         """Test fact-checking article content."""
-        pytest.skip("EditorAgent.fact_check_article not yet implemented")
+        pytest.skip("Editor.fact_check_article not yet implemented")
 
     def test_agent_initialization(self):
-        """Test that EditorAgent can be initialized with empty config."""
-        agent = EditorAgent({})
+        """Test that Editor can be initialized with empty config."""
+        agent = Editor({})
         assert agent is not None
         assert hasattr(agent, "review_article")

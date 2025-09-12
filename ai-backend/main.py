@@ -14,10 +14,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel
-from sciber_agents.data_collector import DataCollectorAgent
-from sciber_agents.editor import EditorAgent
-from sciber_agents.researcher import ResearchAgent
-from sciber_agents.writer import WritingAgent
+from scriber_agents.data_collector import DataCollectorAgent
+from scriber_agents.editor import Editor
+from scriber_agents.researcher import ResearchAgent
+from scriber_agents.writer import WriterAgent
 
 from config.agent_config import AgentConfigurations
 from config.settings import get_settings
