@@ -6,6 +6,10 @@
 - Provides simple season range helper and parsed-query runner
 - Safe ISO datetime parsing (handles trailing 'Z')
 - Performance improvements through async patterns and caching
+- Updated for new Supabase schema: supports new 'player_firstname'/'player_lastname' fields
+- Updated team search to use 'team_name' field
+- Uses player_match_stats table for statistical queries (currently empty but structure ready)
+- Backward compatible with existing schema while supporting new field names
 """
 
 import logging
@@ -340,7 +344,11 @@ class SoccerDatabase:
     def search_players(self, query: str, limit: int = 10) -> List[Player]:
         """Search players by name (sync)."""
         try:
-            resp = self.supabase.table('players').select('*').ilike('name', f"%{query}%").limit(limit).execute()
+            # Search by player_firstname and player_lastname (current schema)
+            resp = self.supabase.table('players').select('*').or_(
+                f"player_firstname.ilike.%{query}%,player_lastname.ilike.%{query}%"
+            ).limit(limit).execute()
+            
             rows = resp.data or []
             return [self._convert_to_player(r) for r in rows]
         except Exception as e:
@@ -356,7 +364,7 @@ class SoccerDatabase:
     def search_teams(self, query: str, limit: int = 10) -> List[Team]:
         """Search teams by name (sync)."""
         try:
-            resp = self.supabase.table('teams').select('*').ilike('name', f"%{query}%").limit(limit).execute()
+            resp = self.supabase.table('teams').select('*').ilike('team_name', f"%{query}%").limit(limit).execute()
             rows = resp.data or []
             return [self._convert_to_team(r) for r in rows]
         except Exception as e:
@@ -401,9 +409,9 @@ class SoccerDatabase:
         try:
             allowed_stats = {
                 "goals", "assists", "minutes_played", "shots_on_target",
-                "tackles", "interceptions", "passes_completed", "clean_sheets", "saves",
+                "tackles", "interceptions", "passes_completed", "passes", "clean_sheets", "saves",
                 "yellow_cards", "red_cards", "fouls_committed", "fouls_drawn",
-                "shots", "passes", "pass_accuracy" 
+                "shots", "pass_accuracy", "rating", "appearances"
             }
             if stat not in allowed_stats:
                 return {"status": "not_supported", "reason": f"stat_not_supported:{stat}"}
@@ -415,11 +423,14 @@ class SoccerDatabase:
                 .eq("player_id", player_id)
             )
 
-            # Test data structure: player_match_stats has match_id, player_id, team_id, etc.
-            # No season or match_date fields, so we ignore date filtering
-            # Just get all stats for the player
+            # player_match_stats table structure - may not have date fields in current schema
             if start_date and end_date:
-                logger.info(f"Date filtering requested but test data has no date fields - getting all player data")
+                logger.info(f"Date filtering requested - attempting to filter by date range")
+                # Try to filter by date if date fields exist
+                try:
+                    qb = qb.gte("match_date", start_date).lte("match_date", end_date)
+                except:
+                    logger.info(f"Date filtering not supported in current schema - getting all player data")
 
             if venue:
                 qb = qb.eq("venue", venue)
@@ -556,17 +567,17 @@ class SoccerDatabase:
             # First, we need to get the team_id from the teams table
             try:
                 # Try exact match first
-                team_response = self.supabase.table("teams").select("id, name").eq("name", team_name).execute()
+                team_response = self.supabase.table("teams").select("id, team_name").eq("team_name", team_name).execute()
                 if not team_response.data:
                     # Try fuzzy match with ilike (case-insensitive partial match)
-                    team_response = self.supabase.table("teams").select("id, name").ilike("name", f"%{team_name}%").execute()
+                    team_response = self.supabase.table("teams").select("id, team_name").ilike("team_name", f"%{team_name}%").execute()
                     if not team_response.data:
                         logger.warning(f"Team '{team_name}' not found in teams table (tried exact and fuzzy match)")
                         
                         # Debug: Show available teams for troubleshooting
                         try:
-                            all_teams = self.supabase.table("teams").select("id, name").limit(20).execute()
-                            available_teams = [team['name'] for team in (all_teams.data or [])]
+                            all_teams = self.supabase.table("teams").select("id, team_name").limit(20).execute()
+                            available_teams = [team['team_name'] for team in (all_teams.data or [])]
                             logger.info(f"Available teams in database: {available_teams}")
                         except Exception as debug_e:
                             logger.error(f"Could not fetch available teams for debugging: {debug_e}")
@@ -575,14 +586,19 @@ class SoccerDatabase:
                 
                 team_id = team_response.data[0]['id']
                 
-                # Now get players for this team using team_id
-                response = self.supabase.table("players").select("id, name, position, team_id").eq("team_id", team_id).execute()
+                # Now get players for this team using team_id (current schema)
+                response = self.supabase.table("players").select("id, player_firstname, player_lastname, position, team_id").eq("team_id", team_id).execute()
                 
                 if response.data:
                     for player in response.data:
+                        # Current schema format (player_firstname + player_lastname)
+                        player_name = f"{player.get('player_firstname', '')} {player.get('player_lastname', '')}".strip()
+                        if not player_name:
+                            player_name = player.get('player_firstname') or player.get('player_lastname') or f"Player {player.get('id', 'Unknown')}"
+                            
                         team_players.append({
                             'id': str(player['id']),
-                            'name': player['name'],
+                            'name': player_name,
                             'position': player.get('position'),
                             'team_id': str(player['team_id'])
                         })
@@ -591,12 +607,17 @@ class SoccerDatabase:
                 logger.warning(f"Error getting team players for {team_name}: {e}")
                 # Fallback: try to get all players and filter by name pattern
                 try:
-                    response = self.supabase.table("players").select("id, name, position, team_id").execute()
+                    response = self.supabase.table("players").select("id, player_firstname, player_lastname, position, team_id").execute()
                     # This is a simple fallback - in real implementation you'd have proper team mapping
                     for player in response.data:
+                        # Current schema format (player_firstname + player_lastname)
+                        player_name = f"{player.get('player_firstname', '')} {player.get('player_lastname', '')}".strip()
+                        if not player_name:
+                            player_name = player.get('player_firstname') or player.get('player_lastname') or f"Player {player.get('id', 'Unknown')}"
+                            
                         team_players.append({
                             'id': str(player['id']),
-                            'name': player['name'],
+                            'name': player_name,
                             'position': player.get('position'),
                             'team_id': str(player.get('team_id', ''))
                         })
@@ -830,7 +851,7 @@ class SoccerDatabase:
                 "pass_accuracy": 0,
                 "yellow_cards": sum(stat.get("yellow_cards", 0) for stat in team1_stats if stat.get("yellow_cards")),
                 "red_cards": sum(stat.get("red_cards", 0) for stat in team1_stats if stat.get("red_cards")),
-                "minutes_played": sum(stat.get("minutes", 0) for stat in team1_stats if stat.get("minutes"))
+                "minutes_played": sum(stat.get("minutes_played", 0) or stat.get("minutes", 0) for stat in team1_stats if stat.get("minutes_played") or stat.get("minutes"))
             }
             
             team2_totals = {
@@ -840,7 +861,7 @@ class SoccerDatabase:
                 "pass_accuracy": 0,
                 "yellow_cards": sum(stat.get("yellow_cards", 0) for stat in team2_stats if stat.get("yellow_cards")),
                 "red_cards": sum(stat.get("red_cards", 0) for stat in team2_stats if stat.get("red_cards")),
-                "minutes_played": sum(stat.get("minutes", 0) for stat in team2_stats if stat.get("minutes"))
+                "minutes_played": sum(stat.get("minutes_played", 0) or stat.get("minutes", 0) for stat in team2_stats if stat.get("minutes_played") or stat.get("minutes"))
             }
             
             # Calculate pass accuracy
@@ -899,11 +920,12 @@ class SoccerDatabase:
         # Map statistics - extend statistical type mapping
         stat_map = {
             "goals": "goals",
-            "assists": "assists", 
+            "assists": "assists",
+            "ast": "assists",         # Alias for assists
             "minutes": "minutes_played",
             "minutes_played": "minutes_played",
-            "shots": "goals",  
-            "shots_on_target": "goals",
+            "shots": "shots",  
+            "shots_on_target": "shots_on_target",
             "passes": "passes",
             "pass_completion": "pass_accuracy", 
             "pass_accuracy": "pass_accuracy",
@@ -915,6 +937,8 @@ class SoccerDatabase:
             "red_cards": "red_cards",
             "fouls_committed": "fouls_committed",
             "fouls_drawn": "fouls_drawn",
+            "rating": "rating",
+            "appearances": "appearances",
             "performance": "performance"
         }
         
@@ -970,7 +994,7 @@ class SoccerDatabase:
         """Get comprehensive performance stats for a player"""
         try:
             # Get multiple statistics for the player
-            stats_to_get = ["goals", "assists", "minutes_played", "shots", "passes", "tackles", "saves"]
+            stats_to_get = ["goals", "assists", "minutes_played", "shots", "passes", "tackles", "saves", "rating", "appearances"]
             performance_stats = {}
             
             for stat in stats_to_get:
@@ -1092,11 +1116,12 @@ class SoccerDatabase:
         # For team queries, we return statistics for all players in the team
         stat_map = {
             "goals": "goals",
-            "assists": "assists", 
+            "assists": "assists",
+            "ast": "assists",         # Alias for assists
             "minutes": "minutes_played",
             "minutes_played": "minutes_played",
-            "shots": "goals",  
-            "shots_on_target": "goals",
+            "shots": "shots",  
+            "shots_on_target": "shots_on_target",
             "passes": "passes",
             "pass_completion": "pass_accuracy", 
             "pass_accuracy": "pass_accuracy",
@@ -1107,7 +1132,9 @@ class SoccerDatabase:
             "yellow_cards": "yellow_cards",
             "red_cards": "red_cards",
             "fouls_committed": "fouls_committed",
-            "fouls_drawn": "fouls_drawn"
+            "fouls_drawn": "fouls_drawn",
+            "rating": "rating",
+            "appearances": "appearances"
         }
         stat = stat_map.get((parsed.statistic_requested or "goals"), "goals")
 
@@ -1150,10 +1177,15 @@ class SoccerDatabase:
 
     def _convert_to_player(self, data: Dict[str, Any]) -> Player:
         """Convert database record to Player object."""
+        # Handle both old and new schema formats
+        player_name = data.get('name') or f"{data.get('player_firstname', '')} {data.get('player_lastname', '')}".strip()
+        if not player_name:
+            player_name = data.get('player_firstname') or data.get('player_lastname') or f"Player {data.get('id', 'Unknown')}"
+            
         return Player(
             id=str(data['id']),
-            name=data['name'],
-            common_name=data.get('common_name', data['name']),
+            name=player_name,
+            common_name=data.get('common_name', player_name),
             nationality=data.get('nationality') or "",
             birth_date=_safe_parse_iso(data.get('birth_date')),
             position=self._safe_position(data.get('position')),
@@ -1169,14 +1201,14 @@ class SoccerDatabase:
         """Convert database record to Team object."""
         return Team(
             id=str(data['id']),
-            name=data['name'],
-            short_name=data.get('short_name', data['name']),
-            country=data.get('country') or "",
-            founded_year=data.get('founded_year'),
+            name=data.get('team_name') or data.get('name', f"Team {data.get('id', 'Unknown')}"),
+            short_name=data.get('short_name') or data.get('team_code') or data.get('team_name', ''),
+            country=data.get('team_country') or data.get('country') or "",
+            founded_year=data.get('team_founded') or data.get('founded_year'),
             venue_name=data.get('venue_name'),
             venue_capacity=data.get('venue_capacity'),
             coach_name=data.get('coach_name'),
-            logo_url=data.get('logo_url'),
+            logo_url=data.get('team_logo') or data.get('logo_url'),
             primary_color=data.get('primary_color'),
             secondary_color=data.get('secondary_color')
         )
@@ -1550,11 +1582,12 @@ class SoccerDatabase:
         # Single statistic handling with async
         stat_map = {
             "goals": "goals",
-            "assists": "assists", 
+            "assists": "ast",  # Updated to match new schema
+            "ast": "ast",      # New field name
             "minutes": "minutes_played",
             "minutes_played": "minutes_played",
-            "shots": "goals",  
-            "shots_on_target": "goals",
+            "shots": "shots",  
+            "shots_on_target": "shots_on_target",
             "passes": "passes",
             "pass_completion": "pass_accuracy", 
             "pass_accuracy": "pass_accuracy",
@@ -1566,6 +1599,8 @@ class SoccerDatabase:
             "red_cards": "red_cards",
             "fouls_committed": "fouls_committed",
             "fouls_drawn": "fouls_drawn",
+            "rating": "rating",           # New field
+            "appearances": "appearances", # New field
             "performance": "performance"
         }
         
@@ -1619,11 +1654,12 @@ class SoccerDatabase:
         """Async version of multiple player statistics handling."""
         stat_map = {
             "goals": "goals",
-            "assists": "assists", 
+            "assists": "ast",  # Updated to match new schema
+            "ast": "ast",      # New field name
             "minutes": "minutes_played",
             "minutes_played": "minutes_played",
-            "shots": "goals",  
-            "shots_on_target": "goals",
+            "shots": "shots",  
+            "shots_on_target": "shots_on_target",
             "passes": "passes",
             "pass_completion": "pass_accuracy", 
             "pass_accuracy": "pass_accuracy",
@@ -1634,7 +1670,9 @@ class SoccerDatabase:
             "yellow_cards": "yellow_cards",
             "red_cards": "red_cards",
             "fouls_committed": "fouls_committed",
-            "fouls_drawn": "fouls_drawn"
+            "fouls_drawn": "fouls_drawn",
+            "rating": "rating",           # New field
+            "appearances": "appearances"  # New field
         }
         
         # Time/season context 
@@ -1714,7 +1752,7 @@ class SoccerDatabase:
         default_season_label: str = "2024-25"
     ) -> Dict[str, Any]:
         """Async version of player performance retrieval."""
-        stats_to_get = ["goals", "assists", "minutes_played", "shots", "passes", "tackles", "saves"]
+        stats_to_get = ["goals", "assists", "minutes_played", "shots", "passes", "tackles", "saves", "rating", "appearances"]
         
         # Create concurrent requests for all performance stats
         requests = []
@@ -1764,11 +1802,12 @@ class SoccerDatabase:
 
         stat_map = {
             "goals": "goals",
-            "assists": "assists", 
+            "assists": "ast",  # Updated to match new schema
+            "ast": "ast",      # New field name
             "minutes": "minutes_played",
             "minutes_played": "minutes_played",
-            "shots": "goals",  
-            "shots_on_target": "goals",
+            "shots": "shots",  
+            "shots_on_target": "shots_on_target",
             "passes": "passes",
             "pass_completion": "pass_accuracy", 
             "pass_accuracy": "pass_accuracy",
@@ -1779,7 +1818,9 @@ class SoccerDatabase:
             "yellow_cards": "yellow_cards",
             "red_cards": "red_cards",
             "fouls_committed": "fouls_committed",
-            "fouls_drawn": "fouls_drawn"
+            "fouls_drawn": "fouls_drawn",
+            "rating": "rating",           # New field
+            "appearances": "appearances"  # New field
         }
         stat = stat_map.get((parsed.statistic_requested or "goals"), "goals")
 

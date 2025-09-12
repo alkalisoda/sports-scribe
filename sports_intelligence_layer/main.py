@@ -1,8 +1,17 @@
+# -*- coding: utf-8 -*-
 """
 Main entry point for the Soccer Intelligence Layer (Async Optimized).
 Demonstrates the complete end-to-end flow: Query → Parse → SQL → Results
 With enhanced performance through async patterns and concurrent execution.
 """
+
+import os
+import sys
+
+if sys.platform.startswith('win'):
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
 
 import os
 import logging
@@ -420,7 +429,7 @@ def main():
             "Jordan Pickford performance"
         ]
         
-        print(f"\n🔍 Testing {len(test_queries)} queries:\n")
+        print(f"\nTesting {len(test_queries)} queries:\n")
         
         for i, query in enumerate(test_queries, 1):
             try:
@@ -429,16 +438,16 @@ def main():
             except Exception as e:
                 print(f"\nQuery {i}: {query}")
                 print("-" * 80)
-                print(f"❌ Error: {e}")
+                print(f"Error: {e}")
         
         print("\n" + "=" * 80)
-        print("🎯 All queries completed!")
+        print("All queries completed!")
         
         # Test cache functionality
         test_cache_functionality(sil)
         
         # Show final performance stats
-        print("\n📈 Final Performance Statistics:")
+        print("\nFinal Performance Statistics:")
         print("-" * 40)
         try:
             perf_stats = sil.get_performance_stats()
@@ -450,10 +459,10 @@ def main():
             print(f"Cache entries: {cache_stats.get('total_cache_entries', 0)}")
             print(f"Cache utilization: {cache_stats.get('cache_utilization_percent', 0):.1f}%")
         except Exception as e:
-            print(f"❌ Error getting performance stats: {e}")
+            print(f"Error getting performance stats: {e}")
         
     except Exception as e:
-        print(f"❌ Failed to initialize: {e}")
+        print(f"Failed to initialize: {e}")
         import traceback
         traceback.print_exc()
 

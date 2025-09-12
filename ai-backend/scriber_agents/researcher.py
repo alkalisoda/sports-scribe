@@ -31,6 +31,32 @@ class AnalysisResult(BaseModel):
     analysis_type: str = Field(description="Type of analysis performed")
 
 
+class StorylinePriority(BaseModel):
+    """Schema for storyline with priority and context."""
+    content: str = Field(description="The storyline content")
+    priority: int = Field(description="Priority ranking (1=highest)", ge=1)
+    narrative_angle: str = Field(description="Narrative angle (drama, analysis, performance, tactical)")
+    audience_appeal: float = Field(description="Estimated audience appeal score", ge=0.0, le=1.0)
+    story_type: str = Field(description="Type of story (match_decisive, player_spotlight, tactical_insight, historical_context)")
+
+
+class NarrativePlan(BaseModel):
+    """Schema for narrative planning results."""
+    primary_narrative: str = Field(description="Main narrative focus of the article")
+    storytelling_focus: str = Field(description="Primary storytelling approach")
+    prioritized_storylines: List[StorylinePriority] = Field(description="Storylines ranked by importance and appeal")
+    narrative_style: str = Field(description="Recommended narrative style (dramatic, analytical, balanced)")
+    target_audience: str = Field(description="Primary target audience (general_fans, tactical_enthusiasts, club_supporters)")
+    confidence: float = Field(description="Confidence in narrative selection", ge=0.0, le=1.0)
+
+
+class EnhancedResearchResult(BaseModel):
+    """Enhanced schema combining analysis and narrative planning."""
+    analysis: AnalysisResult = Field(description="Raw analysis results")
+    narrative_plan: NarrativePlan = Field(description="Narrative planning results")
+    processing_metadata: Dict[str, Any] = Field(description="Processing metadata and timing info")
+
+
 class MatchInfoAnalysisTool(BaseTool):
     """Tool for analyzing match information."""
     
@@ -189,7 +215,14 @@ class ResearchAgent:
         # Initialize JSON output parser
         self.json_parser = JsonOutputParser(pydantic_object=AnalysisResult)
         
-        logger.info("LangChain Research Agent initialized successfully")
+        # Initialize narrative planner
+        self.narrative_llm = ChatOpenAI(
+            model=self.config.get("narrative_model", "gpt-4o"),
+            temperature=self.config.get("narrative_temperature", 0.6),
+            max_tokens=self.config.get("narrative_max_tokens", 1500),
+        )
+        
+        logger.info("LangChain Research Agent with Narrative Planner initialized successfully")
 
 
     async def get_storyline_from_game_data(self, game_data: dict) -> list[str]:
@@ -268,6 +301,126 @@ class ResearchAgent:
         except Exception as e:
             logger.error(f"Error generating comprehensive storylines: {e}")
             return ["Comprehensive match analysis based on available game data", "Key moments and turning points from the match"]
+
+    async def get_enhanced_research_with_narrative(self, game_data: dict) -> EnhancedResearchResult:
+        """Get comprehensive research analysis with narrative planning.
+        
+        This method combines traditional storyline analysis with intelligent narrative planning
+        to provide structured guidance for article writing.
+        
+        Args:
+            game_data: Compact game data from pipeline
+            
+        Returns:
+            EnhancedResearchResult: Analysis + narrative planning results
+        """
+        import time
+        start_time = time.time()
+        
+        logger.info("Generating enhanced research with narrative planning")
+        
+        try:
+            # Step 1: Generate traditional storylines
+            storylines = await self.get_storyline_from_game_data(game_data)
+            
+            # Step 2: Create basic analysis result
+            analysis_result = AnalysisResult(
+                storylines=storylines,
+                confidence=0.85,
+                analysis_type="comprehensive_with_narrative"
+            )
+            
+            # Step 3: Generate narrative plan
+            narrative_plan = await self._create_narrative_plan(storylines, game_data)
+            
+            # Step 4: Create processing metadata
+            processing_time = time.time() - start_time
+            metadata = {
+                "processing_time_seconds": round(processing_time, 3),
+                "storylines_count": len(storylines),
+                "narrative_angles_identified": len(set(sl.narrative_angle for sl in narrative_plan.prioritized_storylines)),
+                "primary_focus": narrative_plan.primary_narrative,
+                "timestamp": time.time()
+            }
+            
+            # Step 5: Combine everything
+            enhanced_result = EnhancedResearchResult(
+                analysis=analysis_result,
+                narrative_plan=narrative_plan,
+                processing_metadata=metadata
+            )
+            
+            logger.info(f"Enhanced research completed in {processing_time:.3f}s with {len(storylines)} storylines")
+            return enhanced_result
+            
+        except Exception as e:
+            logger.error(f"Error in enhanced research generation: {e}")
+            # Return fallback result
+            fallback_storylines = ["Match analysis based on available data", "Key events and performances"]
+            return self._create_fallback_enhanced_result(fallback_storylines, str(e))
+
+    async def _create_narrative_plan(self, storylines: List[str], game_data: dict) -> NarrativePlan:
+        """Create narrative plan based on storylines and game data."""
+        logger.info("Creating narrative plan from storylines")
+        
+        try:
+            # Extract key game context for narrative planning
+            match_info = game_data.get("match_info", {})
+            teams = [match_info.get("home_team", "Team A"), match_info.get("away_team", "Team B")]
+            score = match_info.get("score", "Unknown")
+            
+            # Create narrative planning prompt
+            narrative_prompt = f"""
+            As a sports narrative expert, analyze these storylines and create a narrative plan:
+            
+            GAME CONTEXT:
+            - Teams: {teams[0]} vs {teams[1]}
+            - Score: {score}
+            - Competition: {match_info.get('competition', 'Unknown')}
+            
+            STORYLINES TO ANALYZE:
+            {chr(10).join(f'{i+1}. {storyline}' for i, storyline in enumerate(storylines))}
+            
+            Create a narrative plan that:
+            1. Identifies the PRIMARY NARRATIVE (main story focus)
+            2. Selects STORYTELLING FOCUS (dramatic, analytical, performance-based, tactical)
+            3. Prioritizes storylines by importance and audience appeal
+            4. Assigns narrative angles to each storyline
+            5. Recommends narrative style and target audience
+            
+            Return JSON with this structure:
+            {{
+                "primary_narrative": "Main story focus",
+                "storytelling_focus": "Primary approach",
+                "narrative_style": "dramatic/analytical/balanced",
+                "target_audience": "general_fans/tactical_enthusiasts/club_supporters",
+                "confidence": 0.9,
+                "prioritized_storylines": [
+                    {{
+                        "content": "storyline text",
+                        "priority": 1,
+                        "narrative_angle": "drama/analysis/performance/tactical",
+                        "audience_appeal": 0.8,
+                        "story_type": "match_decisive/player_spotlight/tactical_insight/historical_context"
+                    }}
+                ]
+            }}
+            """
+            
+            # Execute narrative planning
+            result = await self._safe_llm_call(
+                narrative_prompt, 
+                "narrative_planning",
+                max_retries=2
+            )
+            
+            # Parse and validate narrative plan
+            narrative_data = self._parse_narrative_plan(result)
+            return self._create_narrative_plan_object(narrative_data, storylines)
+            
+        except Exception as e:
+            logger.error(f"Error creating narrative plan: {e}")
+            return self._create_fallback_narrative_plan(storylines)
 
     async def _analyze_components_separately(self, match_info, events, players, statistics, lineups) -> List[str]:
         """Analyze components separately using Chain of Thought reasoning."""
@@ -679,3 +832,164 @@ class ResearchAgent:
         except Exception as e:
             logger.error(f"Error analyzing player performance with CoT: {e}")
             return ["Player performance analysis based on available data", "Individual contributions from the match data"]
+
+    def _parse_narrative_plan(self, result_text: str) -> dict:
+        """Parse narrative plan from LLM response."""
+        try:
+            # Try to extract JSON from the result
+            import re
+            json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group()
+                return json.loads(json_str)
+            
+            # If no JSON found, return None to trigger fallback
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error parsing narrative plan: {e}")
+            return None
+    
+    def _create_narrative_plan_object(self, narrative_data: dict, storylines: List[str]) -> NarrativePlan:
+        """Create NarrativePlan object from parsed data."""
+        if not narrative_data:
+            return self._create_fallback_narrative_plan(storylines)
+        
+        try:
+            # Extract prioritized storylines
+            prioritized_storylines = []
+            storylines_data = narrative_data.get("prioritized_storylines", [])
+            
+            for i, sl_data in enumerate(storylines_data):
+                prioritized_storylines.append(StorylinePriority(
+                    content=sl_data.get("content", storylines[i] if i < len(storylines) else "Story content"),
+                    priority=sl_data.get("priority", i + 1),
+                    narrative_angle=sl_data.get("narrative_angle", "analysis"),
+                    audience_appeal=sl_data.get("audience_appeal", 0.7),
+                    story_type=sl_data.get("story_type", "match_decisive")
+                ))
+            
+            # If no prioritized storylines from data, create from original storylines
+            if not prioritized_storylines:
+                prioritized_storylines = self._create_default_prioritized_storylines(storylines)
+            
+            return NarrativePlan(
+                primary_narrative=narrative_data.get("primary_narrative", "Match analysis and key moments"),
+                storytelling_focus=narrative_data.get("storytelling_focus", "balanced"),
+                prioritized_storylines=prioritized_storylines,
+                narrative_style=narrative_data.get("narrative_style", "balanced"),
+                target_audience=narrative_data.get("target_audience", "general_fans"),
+                confidence=narrative_data.get("confidence", 0.8)
+            )
+            
+        except Exception as e:
+            logger.error(f"Error creating narrative plan object: {e}")
+            return self._create_fallback_narrative_plan(storylines)
+    
+    def _create_fallback_narrative_plan(self, storylines: List[str]) -> NarrativePlan:
+        """Create fallback narrative plan when AI planning fails."""
+        logger.info("Creating fallback narrative plan")
+        
+        # Create default prioritized storylines
+        prioritized_storylines = self._create_default_prioritized_storylines(storylines)
+        
+        return NarrativePlan(
+            primary_narrative="Match recap with key highlights and analysis",
+            storytelling_focus="balanced",
+            prioritized_storylines=prioritized_storylines,
+            narrative_style="analytical",
+            target_audience="general_fans",
+            confidence=0.7
+        )
+    
+    def _create_default_prioritized_storylines(self, storylines: List[str]) -> List[StorylinePriority]:
+        """Create default prioritized storylines from raw storylines."""
+        prioritized = []
+        
+        for i, storyline in enumerate(storylines[:5]):  # Limit to top 5
+            # Simple heuristic-based categorization
+            narrative_angle = self._determine_narrative_angle(storyline)
+            story_type = self._determine_story_type(storyline)
+            audience_appeal = self._estimate_audience_appeal(storyline)
+            
+            prioritized.append(StorylinePriority(
+                content=storyline,
+                priority=i + 1,
+                narrative_angle=narrative_angle,
+                audience_appeal=audience_appeal,
+                story_type=story_type
+            ))
+        
+        return prioritized
+    
+    def _determine_narrative_angle(self, storyline: str) -> str:
+        """Determine narrative angle based on storyline content."""
+        storyline_lower = storyline.lower()
+        
+        if any(word in storyline_lower for word in ["dramatic", "winner", "last-minute", "comeback"]):
+            return "drama"
+        elif any(word in storyline_lower for word in ["tactics", "formation", "strategy", "system"]):
+            return "tactical"
+        elif any(word in storyline_lower for word in ["performance", "rating", "stats", "contributions"]):
+            return "performance"
+        else:
+            return "analysis"
+    
+    def _determine_story_type(self, storyline: str) -> str:
+        """Determine story type based on storyline content."""
+        storyline_lower = storyline.lower()
+        
+        if any(word in storyline_lower for word in ["goal", "winner", "decisive", "crucial"]):
+            return "match_decisive"
+        elif any(word in storyline_lower for word in ["player", "performance", "standout", "individual"]):
+            return "player_spotlight"
+        elif any(word in storyline_lower for word in ["tactics", "formation", "tactical"]):
+            return "tactical_insight"
+        else:
+            return "historical_context"
+    
+    def _estimate_audience_appeal(self, storyline: str) -> float:
+        """Estimate audience appeal based on storyline content."""
+        storyline_lower = storyline.lower()
+        
+        # High appeal keywords
+        high_appeal_words = ["goal", "winner", "dramatic", "comeback", "historic", "record"]
+        medium_appeal_words = ["performance", "key", "important", "significant"]
+        
+        if any(word in storyline_lower for word in high_appeal_words):
+            return 0.9
+        elif any(word in storyline_lower for word in medium_appeal_words):
+            return 0.7
+        else:
+            return 0.6
+    
+    def _create_fallback_enhanced_result(self, storylines: List[str], error_msg: str) -> EnhancedResearchResult:
+        """Create fallback enhanced result when processing fails."""
+        import time
+        
+        # Create basic analysis
+        analysis = AnalysisResult(
+            storylines=storylines,
+            confidence=0.6,
+            analysis_type="fallback_analysis"
+        )
+        
+        # Create fallback narrative plan
+        narrative_plan = self._create_fallback_narrative_plan(storylines)
+        
+        # Create metadata
+        metadata = {
+            "processing_time_seconds": 0.1,
+            "storylines_count": len(storylines),
+            "narrative_angles_identified": 1,
+            "primary_focus": "fallback_analysis",
+            "timestamp": time.time(),
+            "error": error_msg,
+            "fallback_used": True
+        }
+        
+        return EnhancedResearchResult(
+            analysis=analysis,
+            narrative_plan=narrative_plan,
+            processing_metadata=metadata
+        )
