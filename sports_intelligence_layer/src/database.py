@@ -7,8 +7,8 @@
 - Safe ISO datetime parsing (handles trailing 'Z')
 - Performance improvements through async patterns and caching
 - Updated for new Supabase schema: supports new 'player_firstname'/'player_lastname' fields
-- Updated team search to use 'team_name' field
-- Uses player_match_stats table for statistical queries (currently empty but structure ready)
+- Updated team search to use 'team_name' field, team_code as short_name
+- Uses both players table (for basic stats: goals, assists, rating, appearances) and player_match_stats table for detailed statistical queries
 - Backward compatible with existing schema while supporting new field names
 """
 
@@ -909,8 +909,9 @@ class SoccerDatabase:
             # Debug: Show available players for troubleshooting
             logger.warning(f"Player '{player_name}' not found in database")
             try:
-                all_players = self.supabase.table("players").select("id, name").limit(20).execute()
-                available_players = [player['name'] for player in (all_players.data or [])]
+                all_players = self.supabase.table("players").select("id, player_firstname, player_lastname").limit(20).execute()
+                available_players = [f"{player.get('player_firstname', '')} {player.get('player_lastname', '')}".strip()
+                                   for player in (all_players.data or [])]
                 logger.info(f"Available players in database: {available_players}")
             except Exception as debug_e:
                 logger.error(f"Could not fetch available players for debugging: {debug_e}")
@@ -1177,40 +1178,40 @@ class SoccerDatabase:
 
     def _convert_to_player(self, data: Dict[str, Any]) -> Player:
         """Convert database record to Player object."""
-        # Handle both old and new schema formats
-        player_name = data.get('name') or f"{data.get('player_firstname', '')} {data.get('player_lastname', '')}".strip()
+        # Handle current schema format with player_firstname/player_lastname
+        player_name = f"{data.get('player_firstname', '')} {data.get('player_lastname', '')}".strip()
         if not player_name:
             player_name = data.get('player_firstname') or data.get('player_lastname') or f"Player {data.get('id', 'Unknown')}"
-            
+
         return Player(
-            id=str(data['id']),
+            id=str(data['id']),  # Convert integer ID to string for compatibility
             name=player_name,
-            common_name=data.get('common_name', player_name),
-            nationality=data.get('nationality') or "",
-            birth_date=_safe_parse_iso(data.get('birth_date')),
+            common_name=player_name,  # Use full name as common name since common_name field doesn't exist
+            nationality=data.get('player_nationality') or "",  # Use player_nationality field
+            birth_date=None,  # birth_date field doesn't exist in current schema
             position=self._safe_position(data.get('position')),
-            height_cm=data.get('height_cm'),
-            weight_kg=data.get('weight_kg'),
-            team_id=str(data['team_id']) if data.get('team_id') else None,
-            jersey_number=data.get('jersey_number'),
-            preferred_foot=data.get('preferred_foot'),
-            market_value=data.get('market_value')
+            height_cm=None,  # height_cm field doesn't exist in current schema
+            weight_kg=None,  # weight_kg field doesn't exist in current schema
+            team_id=str(data['team_id']) if data.get('team_id') else None,  # Convert integer to string
+            jersey_number=None,  # jersey_number field doesn't exist in current schema
+            preferred_foot=None,  # preferred_foot field doesn't exist in current schema
+            market_value=None  # market_value field doesn't exist in current schema
         )
 
     def _convert_to_team(self, data: Dict[str, Any]) -> Team:
         """Convert database record to Team object."""
         return Team(
-            id=str(data['id']),
-            name=data.get('team_name') or data.get('name', f"Team {data.get('id', 'Unknown')}"),
-            short_name=data.get('short_name') or data.get('team_code') or data.get('team_name', ''),
-            country=data.get('team_country') or data.get('country') or "",
-            founded_year=data.get('team_founded') or data.get('founded_year'),
+            id=str(data['id']),  # Convert integer ID to string for compatibility
+            name=data.get('team_name') or f"Team {data.get('id', 'Unknown')}",
+            short_name=data.get('team_code') or data.get('team_name', ''),  # Use team_code as short_name
+            country=data.get('team_country') or "",
+            founded_year=data.get('team_founded'),
             venue_name=data.get('venue_name'),
             venue_capacity=data.get('venue_capacity'),
-            coach_name=data.get('coach_name'),
-            logo_url=data.get('team_logo') or data.get('logo_url'),
-            primary_color=data.get('primary_color'),
-            secondary_color=data.get('secondary_color')
+            coach_name=None,  # coach_name field doesn't exist in current schema
+            logo_url=data.get('team_logo'),
+            primary_color=None,  # primary_color field doesn't exist in current schema
+            secondary_color=None  # secondary_color field doesn't exist in current schema
         )
 
     def _convert_to_match(self, data: Dict[str, Any]) -> Match:
@@ -1582,14 +1583,14 @@ class SoccerDatabase:
         # Single statistic handling with async
         stat_map = {
             "goals": "goals",
-            "assists": "ast",  # Updated to match new schema
-            "ast": "ast",      # New field name
+            "assists": "assists",  # Correct field name from players table
+            "ast": "assists",      # Alias for assists
             "minutes": "minutes_played",
             "minutes_played": "minutes_played",
-            "shots": "shots",  
+            "shots": "shots",
             "shots_on_target": "shots_on_target",
             "passes": "passes",
-            "pass_completion": "pass_accuracy", 
+            "pass_completion": "pass_accuracy",
             "pass_accuracy": "pass_accuracy",
             "tackles": "tackles",
             "interceptions": "interceptions",
@@ -1599,8 +1600,8 @@ class SoccerDatabase:
             "red_cards": "red_cards",
             "fouls_committed": "fouls_committed",
             "fouls_drawn": "fouls_drawn",
-            "rating": "rating",           # New field
-            "appearances": "appearances", # New field
+            "rating": "rating",           # Available in players table
+            "appearances": "appearances", # Available in players table
             "performance": "performance"
         }
         
@@ -1654,8 +1655,8 @@ class SoccerDatabase:
         """Async version of multiple player statistics handling."""
         stat_map = {
             "goals": "goals",
-            "assists": "ast",  # Updated to match new schema
-            "ast": "ast",      # New field name
+            "assists": "assists",  # Correct field name from players table
+            "ast": "assists",      # Alias for assists
             "minutes": "minutes_played",
             "minutes_played": "minutes_played",
             "shots": "shots",  
@@ -1802,8 +1803,8 @@ class SoccerDatabase:
 
         stat_map = {
             "goals": "goals",
-            "assists": "ast",  # Updated to match new schema
-            "ast": "ast",      # New field name
+            "assists": "assists",  # Correct field name from players table
+            "ast": "assists",      # Alias for assists
             "minutes": "minutes_played",
             "minutes_played": "minutes_played",
             "shots": "shots",  
@@ -1894,3 +1895,547 @@ class SoccerDatabase:
             "matches": total_matches,
             "player_count": len(team_players)
         }
+
+    # ===== HISTORICAL STATISTICS READING METHODS =====
+
+    def get_historical_stats(self, entity_type: str, entity_id: str, stat_types: List[str] = None,
+                           record_types: List[str] = None, limit: int = None) -> List[Dict[str, Any]]:
+        """Retrieve historical statistics for a specific entity."""
+        try:
+            query = self.supabase.table('historical_records').select('*').eq(
+                'entity_type', entity_type
+            ).eq('entity_id', entity_id)
+
+            if stat_types:
+                query = query.in_('stat_name', stat_types)
+
+            if record_types:
+                query = query.in_('record_type', record_types)
+
+            if limit:
+                query = query.limit(limit)
+
+            # Order by date_achieved descending to get most recent first
+            query = query.order('date_achieved', desc=True)
+
+            response = query.execute()
+            stats = response.data or []
+
+            logger.info(f"Retrieved {len(stats)} historical stats for {entity_type} {entity_id}")
+            return stats
+
+        except Exception as e:
+            logger.error(f"Error retrieving historical stats for {entity_type} {entity_id}: {e}")
+            return []
+
+    async def get_historical_stats_async(self, entity_type: str, entity_id: str, stat_types: List[str] = None,
+                                       record_types: List[str] = None, limit: int = None) -> List[Dict[str, Any]]:
+        """Async version of get_historical_stats."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.get_historical_stats,
+            entity_type, entity_id, stat_types, record_types, limit
+        )
+
+    def get_historical_stats_by_timerange(self, start_date: str, end_date: str,
+                                        entity_type: str = None, stat_types: List[str] = None) -> List[Dict[str, Any]]:
+        """Retrieve historical statistics within a specific time range."""
+        try:
+            query = self.supabase.table('historical_records').select('*').gte(
+                'date_achieved', start_date
+            ).lte('date_achieved', end_date)
+
+            if entity_type:
+                query = query.eq('entity_type', entity_type)
+
+            if stat_types:
+                query = query.in_('stat_name', stat_types)
+
+            query = query.order('date_achieved', desc=True)
+
+            response = query.execute()
+            stats = response.data or []
+
+            logger.info(f"Retrieved {len(stats)} historical stats between {start_date} and {end_date}")
+            return stats
+
+        except Exception as e:
+            logger.error(f"Error retrieving historical stats by timerange: {e}")
+            return []
+
+    async def get_historical_stats_by_timerange_async(self, start_date: str, end_date: str,
+                                                    entity_type: str = None, stat_types: List[str] = None) -> List[Dict[str, Any]]:
+        """Async version of get_historical_stats_by_timerange."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.get_historical_stats_by_timerange,
+            start_date, end_date, entity_type, stat_types
+        )
+
+    def get_comparative_historical_stats(self, entity_ids: List[str], stat_type: str,
+                                       entity_type: str = 'player', record_type: str = None) -> List[Dict[str, Any]]:
+        """Get comparative historical statistics for multiple entities."""
+        try:
+            query = self.supabase.table('historical_records').select('*').eq(
+                'entity_type', entity_type
+            ).eq('stat_name', stat_type).in_('entity_id', entity_ids)
+
+            if record_type:
+                query = query.eq('record_type', record_type)
+
+            query = query.order('stat_value', desc=True)
+
+            response = query.execute()
+            stats = response.data or []
+
+            logger.info(f"Retrieved {len(stats)} comparative historical stats for {stat_type}")
+            return stats
+
+        except Exception as e:
+            logger.error(f"Error retrieving comparative historical stats: {e}")
+            return []
+
+    async def get_comparative_historical_stats_async(self, entity_ids: List[str], stat_type: str,
+                                                   entity_type: str = 'player', record_type: str = None) -> List[Dict[str, Any]]:
+        """Async version of get_comparative_historical_stats."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.get_comparative_historical_stats,
+            entity_ids, stat_type, entity_type, record_type
+        )
+
+    def get_entity_best_historical_stats(self, entity_type: str, entity_id: str,
+                                       top_n: int = 10) -> List[Dict[str, Any]]:
+        """Get the best/highest historical statistics for an entity."""
+        try:
+            query = self.supabase.table('historical_records').select('*').eq(
+                'entity_type', entity_type
+            ).eq('entity_id', entity_id).eq('record_type', 'best').order('stat_value', desc=True)
+
+            if top_n:
+                query = query.limit(top_n)
+
+            response = query.execute()
+            stats = response.data or []
+
+            logger.info(f"Retrieved {len(stats)} best historical stats for {entity_type} {entity_id}")
+            return stats
+
+        except Exception as e:
+            logger.error(f"Error retrieving best historical stats for {entity_type} {entity_id}: {e}")
+            return []
+
+    async def get_entity_best_historical_stats_async(self, entity_type: str, entity_id: str,
+                                                   top_n: int = 10) -> List[Dict[str, Any]]:
+        """Async version of get_entity_best_historical_stats."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.get_entity_best_historical_stats,
+            entity_type, entity_id, top_n
+        )
+
+    def get_entity_career_historical_stats(self, entity_type: str, entity_id: str) -> List[Dict[str, Any]]:
+        """Get career/total historical statistics for an entity."""
+        try:
+            query = self.supabase.table('historical_records').select('*').eq(
+                'entity_type', entity_type
+            ).eq('entity_id', entity_id).eq('record_type', 'career_total').order('stat_name')
+
+            response = query.execute()
+            stats = response.data or []
+
+            logger.info(f"Retrieved {len(stats)} career historical stats for {entity_type} {entity_id}")
+            return stats
+
+        except Exception as e:
+            logger.error(f"Error retrieving career historical stats for {entity_type} {entity_id}: {e}")
+            return []
+
+    async def get_entity_career_historical_stats_async(self, entity_type: str, entity_id: str) -> List[Dict[str, Any]]:
+        """Async version of get_entity_career_historical_stats."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.get_entity_career_historical_stats,
+            entity_type, entity_id
+        )
+
+    def get_recent_historical_milestones(self, entity_type: str = None, entity_id: str = None,
+                                       days: int = 30, limit: int = 20) -> List[Dict[str, Any]]:
+        """Get recent historical milestones and achievements."""
+        try:
+            cutoff_date = (datetime.utcnow() - timedelta(days=days)).isoformat()
+
+            query = self.supabase.table('historical_records').select('*').eq(
+                'record_type', 'milestone'
+            ).gte('date_achieved', cutoff_date).order('date_achieved', desc=True)
+
+            if entity_type:
+                query = query.eq('entity_type', entity_type)
+
+            if entity_id:
+                query = query.eq('entity_id', entity_id)
+
+            if limit:
+                query = query.limit(limit)
+
+            response = query.execute()
+            milestones = response.data or []
+
+            logger.info(f"Retrieved {len(milestones)} recent historical milestones")
+            return milestones
+
+        except Exception as e:
+            logger.error(f"Error retrieving recent historical milestones: {e}")
+            return []
+
+    async def get_recent_historical_milestones_async(self, entity_type: str = None, entity_id: str = None,
+                                                   days: int = 30, limit: int = 20) -> List[Dict[str, Any]]:
+        """Async version of get_recent_historical_milestones."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.get_recent_historical_milestones,
+            entity_type, entity_id, days, limit
+        )
+
+    def get_trending_historical_stats(self, stat_type: str, entity_type: str = 'player',
+                                    limit: int = 10, record_type: str = 'best') -> List[Dict[str, Any]]:
+        """Get trending/top performers for a specific statistic from historical records."""
+        try:
+            query = self.supabase.table('historical_records').select('*').eq(
+                'entity_type', entity_type
+            ).eq('stat_name', stat_type).eq('record_type', record_type).order('stat_value', desc=True)
+
+            if limit:
+                query = query.limit(limit)
+
+            response = query.execute()
+            stats = response.data or []
+
+            logger.info(f"Retrieved {len(stats)} trending historical stats for {stat_type}")
+            return stats
+
+        except Exception as e:
+            logger.error(f"Error retrieving trending historical stats for {stat_type}: {e}")
+            return []
+
+    async def get_trending_historical_stats_async(self, stat_type: str, entity_type: str = 'player',
+                                                limit: int = 10, record_type: str = 'best') -> List[Dict[str, Any]]:
+        """Async version of get_trending_historical_stats."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.get_trending_historical_stats,
+            stat_type, entity_type, limit, record_type
+        )
+
+    def query_historical_records(self, filters: Dict[str, Any], limit: int = 100) -> List[Dict[str, Any]]:
+        """Advanced query interface for historical records with flexible filtering."""
+        try:
+            query = self.supabase.table('historical_records').select('*')
+
+            # Apply filters
+            for field, value in filters.items():
+                if field in ['order_by', 'desc']:
+                    continue  # Skip special control fields
+
+                if isinstance(value, list):
+                    query = query.in_(field, value)
+                elif isinstance(value, dict):
+                    # Support for range queries
+                    if 'gte' in value:
+                        query = query.gte(field, value['gte'])
+                    if 'lte' in value:
+                        query = query.lte(field, value['lte'])
+                    if 'gt' in value:
+                        query = query.gt(field, value['gt'])
+                    if 'lt' in value:
+                        query = query.lt(field, value['lt'])
+                    if 'eq' in value:
+                        query = query.eq(field, value['eq'])
+                else:
+                    query = query.eq(field, value)
+
+            # Default ordering
+            if 'order_by' in filters:
+                order_field = filters['order_by']
+                desc = filters.get('desc', False)
+                query = query.order(order_field, desc=desc)
+            else:
+                query = query.order('date_achieved', desc=True)
+
+            if limit:
+                query = query.limit(limit)
+
+            response = query.execute()
+            records = response.data or []
+
+            logger.info(f"Query returned {len(records)} historical records")
+            return records
+
+        except Exception as e:
+            logger.error(f"Error in advanced historical records query: {e}")
+            return []
+
+    async def query_historical_records_async(self, filters: Dict[str, Any], limit: int = 100) -> List[Dict[str, Any]]:
+        """Async version of query_historical_records."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.query_historical_records,
+            filters, limit
+        )
+
+    def get_entity_historical_summary(self, entity_type: str, entity_id: str) -> Dict[str, Any]:
+        """Get a comprehensive summary of an entity's historical statistics."""
+        try:
+            # Get all historical records for the entity
+            response = self.supabase.table('historical_records').select('*').eq(
+                'entity_type', entity_type
+            ).eq('entity_id', entity_id).execute()
+
+            records = response.data or []
+
+            if not records:
+                return {
+                    'entity_type': entity_type,
+                    'entity_id': entity_id,
+                    'total_records': 0,
+                    'record_types': {},
+                    'statistics': {},
+                    'milestones': [],
+                    'best_performances': [],
+                    'career_totals': []
+                }
+
+            # Categorize records
+            summary = {
+                'entity_type': entity_type,
+                'entity_id': entity_id,
+                'total_records': len(records),
+                'record_types': {},
+                'statistics': {},
+                'milestones': [],
+                'best_performances': [],
+                'career_totals': []
+            }
+
+            for record in records:
+                record_type = record.get('record_type', 'unknown')
+                stat_name = record.get('stat_name', 'unknown')
+
+                # Count by record type
+                summary['record_types'][record_type] = summary['record_types'].get(record_type, 0) + 1
+
+                # Count by statistic type
+                summary['statistics'][stat_name] = summary['statistics'].get(stat_name, 0) + 1
+
+                # Categorize specific records
+                if record_type == 'milestone':
+                    summary['milestones'].append(record)
+                elif record_type == 'best':
+                    summary['best_performances'].append(record)
+                elif record_type == 'career_total':
+                    summary['career_totals'].append(record)
+
+            logger.info(f"Generated historical summary for {entity_type} {entity_id}: {len(records)} total records")
+            return summary
+
+        except Exception as e:
+            logger.error(f"Error generating entity historical summary: {e}")
+            return {}
+
+    async def get_entity_historical_summary_async(self, entity_type: str, entity_id: str) -> Dict[str, Any]:
+        """Async version of get_entity_historical_summary."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.get_entity_historical_summary,
+            entity_type, entity_id
+        )
+
+    def get_player_historical_context(self, player_id: str, stat_type: str = None) -> Dict[str, Any]:
+        """Get historical context for a player including career progression and milestones."""
+        try:
+            # Get all historical records for the player
+            historical_stats = self.get_historical_stats('player', player_id)
+
+            if not historical_stats:
+                return {
+                    'player_id': player_id,
+                    'has_historical_data': False,
+                    'career_highlights': [],
+                    'recent_milestones': [],
+                    'best_performances': [],
+                    'career_totals': {}
+                }
+
+            # Filter by stat_type if provided
+            if stat_type:
+                historical_stats = [stat for stat in historical_stats if stat.get('stat_name') == stat_type]
+
+            # Categorize the data
+            career_highlights = []
+            recent_milestones = []
+            best_performances = []
+            career_totals = {}
+
+            # Recent cutoff (last 365 days)
+            recent_cutoff = (datetime.utcnow() - timedelta(days=365)).isoformat()
+
+            for record in historical_stats:
+                record_type = record.get('record_type', '')
+                date_achieved = record.get('date_achieved', '')
+
+                if record_type == 'milestone':
+                    milestone_data = {
+                        'stat_name': record.get('stat_name'),
+                        'stat_value': record.get('stat_value'),
+                        'date_achieved': date_achieved,
+                        'description': record.get('description', ''),
+                        'verified': record.get('verified', False)
+                    }
+
+                    if date_achieved and date_achieved > recent_cutoff:
+                        recent_milestones.append(milestone_data)
+                    else:
+                        career_highlights.append(milestone_data)
+
+                elif record_type == 'best':
+                    best_performances.append({
+                        'stat_name': record.get('stat_name'),
+                        'stat_value': record.get('stat_value'),
+                        'date_achieved': date_achieved,
+                        'description': record.get('description', ''),
+                        'verified': record.get('verified', False)
+                    })
+
+                elif record_type == 'career_total':
+                    career_totals[record.get('stat_name', 'unknown')] = {
+                        'value': record.get('stat_value'),
+                        'last_updated': date_achieved,
+                        'verified': record.get('verified', False)
+                    }
+
+            # Sort by date (most recent first)
+            career_highlights.sort(key=lambda x: x.get('date_achieved', ''), reverse=True)
+            recent_milestones.sort(key=lambda x: x.get('date_achieved', ''), reverse=True)
+            best_performances.sort(key=lambda x: x.get('stat_value', 0), reverse=True)
+
+            return {
+                'player_id': player_id,
+                'has_historical_data': True,
+                'career_highlights': career_highlights[:10],  # Top 10
+                'recent_milestones': recent_milestones[:5],   # Last 5
+                'best_performances': best_performances[:10], # Top 10
+                'career_totals': career_totals,
+                'total_historical_records': len(historical_stats)
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting player historical context for {player_id}: {e}")
+            return {
+                'player_id': player_id,
+                'has_historical_data': False,
+                'error': str(e)
+            }
+
+    async def get_player_historical_context_async(self, player_id: str, stat_type: str = None) -> Dict[str, Any]:
+        """Async version of get_player_historical_context."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.get_player_historical_context,
+            player_id, stat_type
+        )
+
+    def get_team_historical_context(self, team_id: str, stat_type: str = None) -> Dict[str, Any]:
+        """Get historical context for a team including achievements and records."""
+        try:
+            # Get all historical records for the team
+            historical_stats = self.get_historical_stats('team', team_id)
+
+            if not historical_stats:
+                return {
+                    'team_id': team_id,
+                    'has_historical_data': False,
+                    'achievements': [],
+                    'team_records': [],
+                    'season_bests': [],
+                    'recent_milestones': []
+                }
+
+            # Filter by stat_type if provided
+            if stat_type:
+                historical_stats = [stat for stat in historical_stats if stat.get('stat_name') == stat_type]
+
+            # Categorize team historical data
+            achievements = []
+            team_records = []
+            season_bests = []
+            recent_milestones = []
+
+            # Recent cutoff (last 2 years for teams)
+            recent_cutoff = (datetime.utcnow() - timedelta(days=730)).isoformat()
+
+            for record in historical_stats:
+                record_type = record.get('record_type', '')
+                date_achieved = record.get('date_achieved', '')
+
+                record_data = {
+                    'stat_name': record.get('stat_name'),
+                    'stat_value': record.get('stat_value'),
+                    'date_achieved': date_achieved,
+                    'description': record.get('description', ''),
+                    'verified': record.get('verified', False)
+                }
+
+                if record_type == 'milestone':
+                    if date_achieved and date_achieved > recent_cutoff:
+                        recent_milestones.append(record_data)
+                    else:
+                        achievements.append(record_data)
+
+                elif record_type == 'best':
+                    team_records.append(record_data)
+
+                elif record_type == 'season_best':
+                    season_bests.append(record_data)
+
+            # Sort collections
+            achievements.sort(key=lambda x: x.get('date_achieved', ''), reverse=True)
+            recent_milestones.sort(key=lambda x: x.get('date_achieved', ''), reverse=True)
+            team_records.sort(key=lambda x: x.get('stat_value', 0), reverse=True)
+            season_bests.sort(key=lambda x: x.get('date_achieved', ''), reverse=True)
+
+            return {
+                'team_id': team_id,
+                'has_historical_data': True,
+                'achievements': achievements[:15],        # Top 15 achievements
+                'team_records': team_records[:10],       # Top 10 records
+                'season_bests': season_bests[:10],       # Recent season bests
+                'recent_milestones': recent_milestones[:5], # Last 5 milestones
+                'total_historical_records': len(historical_stats)
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting team historical context for {team_id}: {e}")
+            return {
+                'team_id': team_id,
+                'has_historical_data': False,
+                'error': str(e)
+            }
+
+    async def get_team_historical_context_async(self, team_id: str, stat_type: str = None) -> Dict[str, Any]:
+        """Async version of get_team_historical_context."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.get_team_historical_context,
+            team_id, stat_type
+        )

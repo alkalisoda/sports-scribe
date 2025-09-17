@@ -1,0 +1,220 @@
+{
+  "agent_configuration": {
+    "name": "SportsScribe Query Processing Agent",
+    "version": "1.0.0",
+    "description": "Configuration for AI agents to process and understand sports queries",
+    "data_files": {
+      "query_patterns": "QUERY_PATTERNS_TEMPLATE.json",
+      "entities": {
+        "players": "players.json",
+        "teams": "teams.json",
+        "derbies": "derbies.json"
+      },
+      "lexicon": {
+        "statistics": "statistics.json",
+        "ranking_keywords": "ranking_keywords.json",
+        "tactical": "tactical.json",
+        "special_cases": "special_cases.json"
+      }
+    }
+  },
+
+  "processing_pipeline": {
+    "steps": [
+      {
+        "step": 1,
+        "name": "query_preprocessing",
+        "description": "Clean and normalize input query",
+        "methods": ["text_normalization", "spell_correction", "alias_resolution"]
+      },
+      {
+        "step": 2,
+        "name": "pattern_matching",
+        "description": "Match query against known patterns",
+        "source": "QUERY_PATTERNS_TEMPLATE.json",
+        "method": "template_based_classification"
+      },
+      {
+        "step": 3,
+        "name": "entity_extraction",
+        "description": "Extract players, teams, and other entities",
+        "sources": ["players.json", "teams.json"],
+        "method": "multi_source_entity_recognition"
+      },
+      {
+        "step": 4,
+        "name": "intent_classification",
+        "description": "Determine query intent and category",
+        "categories": ["stat_lookup", "comparison", "historical", "context", "ranking"],
+        "confidence_threshold": 0.6
+      },
+      {
+        "step": 5,
+        "name": "database_routing",
+        "description": "Route to appropriate database method",
+        "mapping_source": "QUERY_PATTERNS_TEMPLATE.json",
+        "database_classes": ["SoccerDatabase", "DatabaseManager"]
+      },
+      {
+        "step": 6,
+        "name": "response_formatting",
+        "description": "Format response based on query type",
+        "templates": "response_formats section in QUERY_PATTERNS_TEMPLATE.json"
+      }
+    ]
+  },
+
+  "agent_behavior": {
+    "confidence_thresholds": {
+      "high_confidence": 0.85,
+      "medium_confidence": 0.6,
+      "low_confidence": 0.4,
+      "reject_threshold": 0.3
+    },
+
+    "fallback_strategies": {
+      "unrecognized_entity": {
+        "action": "fuzzy_match",
+        "sources": ["players.json", "teams.json"],
+        "similarity_threshold": 0.7
+      },
+      "ambiguous_intent": {
+        "action": "request_clarification",
+        "suggest_alternatives": true,
+        "max_suggestions": 3
+      },
+      "insufficient_data": {
+        "action": "explain_limitation",
+        "suggest_alternatives": true,
+        "partial_results": true
+      },
+      "complex_query": {
+        "action": "decompose",
+        "max_subqueries": 3,
+        "combine_results": true
+      }
+    },
+
+    "response_strategies": {
+      "direct_answer": {
+        "pattern": "single_value_response",
+        "include_context": true,
+        "confidence_display": false
+      },
+      "comparison": {
+        "pattern": "side_by_side",
+        "include_analysis": true,
+        "highlight_differences": true
+      },
+      "ranking": {
+        "pattern": "ordered_list",
+        "max_items": 10,
+        "include_values": true
+      },
+      "historical": {
+        "pattern": "timeline",
+        "include_context": true,
+        "group_by_significance": true
+      },
+      "contextual": {
+        "pattern": "explanatory",
+        "include_background": true,
+        "cite_sources": true
+      }
+    }
+  },
+
+  "error_handling": {
+    "entity_not_found": {
+      "message_template": "Player/team '{entity}' not found. Did you mean: {suggestions}?",
+      "suggestion_count": 3,
+      "fuzzy_search": true
+    },
+    "statistic_not_supported": {
+      "message_template": "Statistic '{statistic}' not available. Supported statistics: {alternatives}",
+      "show_alternatives": true,
+      "max_alternatives": 5
+    },
+    "insufficient_data": {
+      "message_template": "Not enough data available for {entity} {statistic}. Available data: {partial_info}",
+      "show_partial": true,
+      "suggest_alternatives": true
+    },
+    "query_too_complex": {
+      "message_template": "Query is complex. Let me break it down: {subqueries}",
+      "decompose": true,
+      "max_parts": 3
+    },
+    "ambiguous_query": {
+      "message_template": "Your query could mean several things: {interpretations}",
+      "show_interpretations": true,
+      "request_clarification": true
+    }
+  },
+
+  "performance_optimization": {
+    "caching": {
+      "enable": true,
+      "ttl_seconds": 300,
+      "cache_patterns": ["basic_stats", "rankings", "comparisons"]
+    },
+    "parallel_processing": {
+      "enable": true,
+      "max_concurrent": 5,
+      "applicable_queries": ["multi_entity_comparison", "complex_analysis"]
+    },
+    "query_optimization": {
+      "enable": true,
+      "combine_similar": true,
+      "batch_database_calls": true
+    }
+  },
+
+  "learning_and_adaptation": {
+    "pattern_feedback": {
+      "track_success_rate": true,
+      "adjust_confidence": true,
+      "learn_new_patterns": false
+    },
+    "user_preference_learning": {
+      "remember_preferences": false,
+      "adapt_responses": false,
+      "session_based": true
+    }
+  },
+
+  "integration_points": {
+    "query_parser": {
+      "class": "SoccerQueryParser",
+      "file": "src/query_parser.py",
+      "methods": ["parse", "_extract_entities", "_determine_intent"]
+    },
+    "database": {
+      "read_class": "SoccerDatabase",
+      "write_class": "DatabaseManager",
+      "files": ["src/database.py", "dataset_op/database_manager.py"]
+    },
+    "response_formatter": {
+      "location": "response formatting logic",
+      "templates": "QUERY_PATTERNS_TEMPLATE.json response_formats section"
+    }
+  },
+
+  "monitoring_and_logging": {
+    "query_metrics": {
+      "track_query_types": true,
+      "track_success_rates": true,
+      "track_response_times": true
+    },
+    "error_tracking": {
+      "log_failed_queries": true,
+      "categorize_errors": true,
+      "suggest_improvements": true
+    },
+    "performance_metrics": {
+      "database_call_times": true,
+      "entity_extraction_accuracy": true,
+      "intent_classification_accuracy": true
+    }
+  }
+}

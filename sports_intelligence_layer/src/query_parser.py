@@ -205,8 +205,11 @@ class SoccerQueryParser:
             'home_venue': re.compile(r'\b(?:at home|home games?|home matches?|home form|home record|home performance)\b', re.IGNORECASE),
             'away_venue': re.compile(r'\b(?:away from home|on the road|away games?|away matches?|away form|away record|away performance|away)\b', re.IGNORECASE),
             'context_keywords': re.compile(r'\b(?:context|significance|important|why|how significant|storylines?|fans|game|verify|verification)\b', re.IGNORECASE),
-            'historical_keywords': re.compile(r'\b(?:when|history|last time|historical|first.*since|since.*first)\b', re.IGNORECASE),
-            'comparison_keywords': re.compile(r'\b(?:compare|better|worse|than)\b', re.IGNORECASE)
+            'historical_keywords': re.compile(r'\b(?:when|history|last time|historical|first.*since|since.*first|career|all.*time|milestone|record|achievement|trend|progression|legacy|breakthrough|debut|anniversary)\b', re.IGNORECASE),
+            'comparison_keywords': re.compile(r'\b(?:compare|better|worse|than)\b', re.IGNORECASE),
+            'milestone_keywords': re.compile(r'\b(?:milestone|achievement|record|breakthrough|first.*time|debut|anniversary|legacy|historic|unprecedented)\b', re.IGNORECASE),
+            'trend_keywords': re.compile(r'\b(?:trend|trending|progression|improvement|decline|development|evolution|trajectory|pattern)\b', re.IGNORECASE),
+            'career_keywords': re.compile(r'\b(?:career|all.*time|lifetime|total|overall|entire|whole.*career)\b', re.IGNORECASE)
         }
         
         # Dictionary for query normalization
@@ -578,27 +581,45 @@ class SoccerQueryParser:
         if tactical_context:
             filters['tactical_context'] = tactical_context
             self.logger.info(f"    Detected tactical context: {tactical_context}")
-            
+
+        # Historical context detection
+        historical_context = self._extract_historical_context(query)
+        if historical_context:
+            filters['historical_context'] = historical_context
+            self.logger.info(f"    Detected historical context: {historical_context}")
+
         return filters
     
-    def _determine_intent(self, query: str, entities: List[SoccerEntity], 
+    def _determine_intent(self, query: str, entities: List[SoccerEntity],
                          comparison_type: Optional[ComparisonType]) -> str:
         """Determine the overall intent of the query using pre-compiled patterns."""
         # First check for context queries using pre-compiled pattern
         if self._compiled_common_patterns['context_keywords'].search(query):
             return "context"
-            
-        # Then check for historical queries using pre-compiled pattern
+
+        # Enhanced historical query detection
         if self._compiled_common_patterns['historical_keywords'].search(query):
             return "historical"
-            
+
+        # Check for milestone queries
+        if self._compiled_common_patterns['milestone_keywords'].search(query):
+            return "historical"
+
+        # Check for trend analysis queries
+        if self._compiled_common_patterns['trend_keywords'].search(query):
+            return "historical"
+
+        # Check for career queries
+        if self._compiled_common_patterns['career_keywords'].search(query):
+            return "historical"
+
         # Then check for comparison queries
         if comparison_type or self._compiled_common_patterns['comparison_keywords'].search(query):
             # But don't count "against" alone as comparison
-            if not (re.search(r'\bagainst\b', query, re.IGNORECASE) and 
+            if not (re.search(r'\bagainst\b', query, re.IGNORECASE) and
                    not self._compiled_common_patterns['vs_keywords'].search(query)):
                 return "comparison"
-                
+
         # Default to stat lookup
         return "stat_lookup"
     
@@ -1005,6 +1026,95 @@ class SoccerQueryParser:
                 break
         
         return context
+
+    def _extract_historical_context(self, query: str) -> Dict[str, Any]:
+        """Extract historical context information from the query."""
+        historical_context = {}
+
+        # Check for milestone-related queries
+        if self._compiled_common_patterns['milestone_keywords'].search(query):
+            historical_context['type'] = 'milestone'
+            historical_context['keywords'] = self._extract_milestone_keywords(query)
+
+        # Check for trend-related queries
+        elif self._compiled_common_patterns['trend_keywords'].search(query):
+            historical_context['type'] = 'trend'
+            historical_context['direction'] = self._extract_trend_direction(query)
+
+        # Check for career-related queries
+        elif self._compiled_common_patterns['career_keywords'].search(query):
+            historical_context['type'] = 'career'
+            historical_context['scope'] = 'entire_career'
+
+        # Check for specific historical periods
+        historical_periods = self._extract_historical_periods(query)
+        if historical_periods:
+            historical_context['periods'] = historical_periods
+
+        # Check for record-related queries
+        if re.search(r'\b(?:record|best|worst|highest|lowest)\b', query, re.IGNORECASE):
+            historical_context['record_type'] = self._extract_record_type(query)
+
+        # Check for comparative historical context
+        if re.search(r'\b(?:compare.*history|historical.*comparison|career.*vs)\b', query, re.IGNORECASE):
+            historical_context['comparison'] = True
+
+        return historical_context
+
+    def _extract_milestone_keywords(self, query: str) -> List[str]:
+        """Extract milestone-related keywords from query."""
+        milestone_keywords = []
+
+        milestone_terms = ['milestone', 'achievement', 'record', 'breakthrough', 'first time',
+                          'debut', 'anniversary', 'legacy', 'historic', 'unprecedented']
+
+        for term in milestone_terms:
+            if re.search(rf'\b{re.escape(term)}\b', query, re.IGNORECASE):
+                milestone_keywords.append(term)
+
+        return milestone_keywords
+
+    def _extract_trend_direction(self, query: str) -> Optional[str]:
+        """Extract trend direction from query."""
+        if re.search(r'\b(?:improvement|improving|better|increase|rising)\b', query, re.IGNORECASE):
+            return 'improving'
+        elif re.search(r'\b(?:decline|declining|worse|decrease|falling)\b', query, re.IGNORECASE):
+            return 'declining'
+        elif re.search(r'\b(?:progression|development|evolution)\b', query, re.IGNORECASE):
+            return 'developing'
+        else:
+            return 'general'
+
+    def _extract_historical_periods(self, query: str) -> List[str]:
+        """Extract specific historical periods mentioned in query."""
+        periods = []
+
+        # Season patterns
+        season_matches = re.findall(r'\b(?:20\d{2}[-/]?\d{2})\b', query)
+        periods.extend(season_matches)
+
+        # Era patterns
+        if re.search(r'\b(?:early career|prime|peak|late career)\b', query, re.IGNORECASE):
+            era_match = re.search(r'\b(early career|prime|peak|late career)\b', query, re.IGNORECASE)
+            if era_match:
+                periods.append(era_match.group(1))
+
+        # Decade patterns
+        decade_matches = re.findall(r'\b(?:19|20)\d0s\b', query)
+        periods.extend(decade_matches)
+
+        return periods
+
+    def _extract_record_type(self, query: str) -> str:
+        """Extract the type of record being queried."""
+        if re.search(r'\b(?:best|highest|most)\b', query, re.IGNORECASE):
+            return 'best'
+        elif re.search(r'\b(?:worst|lowest|least)\b', query, re.IGNORECASE):
+            return 'worst'
+        elif re.search(r'\b(?:record)\b', query, re.IGNORECASE):
+            return 'record'
+        else:
+            return 'general'
 
     def _detect_venue(self, query: str) -> Optional[str]:
         """Intelligently detect venue (home/away) from query using pre-compiled patterns."""

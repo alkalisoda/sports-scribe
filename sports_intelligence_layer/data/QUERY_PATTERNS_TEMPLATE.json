@@ -1,0 +1,470 @@
+{
+  "metadata": {
+    "title": "SportsScribe AI Agent Query Patterns Template",
+    "description": "Template for AI agents to understand and categorize different types of sports queries for optimal processing",
+    "version": "1.0.0",
+    "last_updated": "2024-12-20",
+    "usage": "AI Agent Internal Template - Not for end users",
+    "entity_types": ["player", "team", "competition", "match", "statistic"],
+    "query_intents": ["stat_lookup", "comparison", "historical", "context", "ranking", "trend_analysis"],
+    "supported_languages": ["English"],
+    "database_methods": {
+      "reading": "SoccerDatabase (src/database.py)",
+      "writing": "DatabaseManager (dataset_op/database_manager.py)"
+    },
+    "agent_usage": {
+      "classification": "Use patterns to classify incoming user queries",
+      "intent_detection": "Determine user intent from query structure",
+      "entity_extraction": "Guide entity recognition process",
+      "response_formatting": "Structure responses based on query type",
+      "error_handling": "Provide fallback strategies for unrecognized patterns"
+    }
+  },
+
+  "query_categories": {
+
+    "1_direct_data_access": {
+      "description": "Simple direct queries for specific player/team statistics",
+      "intent": "stat_lookup",
+      "database_method": "get_player_stat_sum(), get_team_players()",
+      "patterns": {
+        "player_basic_stats": {
+          "template": "How many {statistic} does {player_name} have?",
+          "examples": [
+            "How many goals does Messi have?",
+            "How many assists does Kevin De Bruyne have?",
+            "How many yellow cards does Sergio Ramos have?",
+            "What is Cristiano Ronaldo's rating?"
+          ],
+          "entities": ["player_name"],
+          "statistics": ["goals", "assists", "yellow_cards", "red_cards", "rating", "appearances", "minutes_played"],
+          "expected_response": "Single numerical value with context",
+          "time_context": "default_season"
+        },
+
+        "team_basic_stats": {
+          "template": "How many {statistic} does {team_name} have?",
+          "examples": [
+            "How many goals does Manchester City have?",
+            "How many wins does Barcelona have this season?",
+            "What is Arsenal's total points?"
+          ],
+          "entities": ["team_name"],
+          "statistics": ["goals", "wins", "losses", "draws", "points", "clean_sheets"],
+          "expected_response": "Aggregated team statistics",
+          "time_context": "this_season"
+        },
+
+        "player_with_time_filter": {
+          "template": "{player_name}'s {statistic} {time_period}",
+          "examples": [
+            "Messi's goals this season",
+            "Haaland's goals in the last 10 games",
+            "Salah's assists at home"
+          ],
+          "entities": ["player_name"],
+          "statistics": ["goals", "assists", "shots", "passes"],
+          "time_contexts": ["this_season", "last_season", "last_n_games", "career"],
+          "venues": ["home", "away", "neutral"],
+          "expected_response": "Filtered statistical data"
+        }
+      }
+    },
+
+    "2_statistical_analysis": {
+      "description": "Queries requiring statistical computation and analysis",
+      "intent": "stat_lookup",
+      "database_method": "get_multiple_player_stats_concurrent(), _get_player_performance()",
+      "patterns": {
+        "performance_overview": {
+          "template": "{player_name}'s performance this season",
+          "examples": [
+            "Messi's performance this season",
+            "How is Haaland performing?",
+            "Show me Kevin De Bruyne's stats"
+          ],
+          "entities": ["player_name"],
+          "statistics": ["multiple_stats"],
+          "expected_response": "Comprehensive performance summary",
+          "query_type": "performance_overview"
+        },
+
+        "multiple_statistics": {
+          "template": "{player_name}'s {stat1} and {stat2}",
+          "examples": [
+            "Messi's goals and assists",
+            "Ronaldo's shots and passes",
+            "Salah's rating and appearances"
+          ],
+          "entities": ["player_name"],
+          "statistics": ["multiple_stats"],
+          "expected_response": "Multiple statistical values",
+          "query_type": "multiple_statistics"
+        },
+
+        "average_calculations": {
+          "template": "Average {statistic} per game for {player_name}",
+          "examples": [
+            "Average goals per game for Haaland",
+            "Messi's average rating per match",
+            "Kevin De Bruyne's average assists per game"
+          ],
+          "entities": ["player_name"],
+          "statistics": ["goals", "assists", "rating", "shots"],
+          "calculation": "average_per_game",
+          "expected_response": "Calculated average value"
+        }
+      }
+    },
+
+    "3_ranking_and_sorting": {
+      "description": "Queries that require ranking, sorting, or finding top/bottom performers",
+      "intent": "ranking",
+      "database_method": "_handle_team_query_async() with ranking filters",
+      "patterns": {
+        "top_performers": {
+          "template": "Who has the most {statistic} in {team_name}?",
+          "examples": [
+            "Who has the most goals in Manchester City?",
+            "Who has the most assists in Barcelona?",
+            "Best rated player in Arsenal?"
+          ],
+          "entities": ["team_name"],
+          "statistics": ["goals", "assists", "rating", "appearances"],
+          "ranking_type": "highest",
+          "expected_response": "Top player with statistical value",
+          "filters": {
+            "ranking": {
+              "type": "ranking",
+              "direction": "highest",
+              "keyword": "most"
+            }
+          }
+        },
+
+        "bottom_performers": {
+          "template": "Who has the least {statistic} in {team_name}?",
+          "examples": [
+            "Who has the fewest goals in Chelsea?",
+            "Lowest rated player in Liverpool?",
+            "Who has the least appearances in Real Madrid?"
+          ],
+          "entities": ["team_name"],
+          "statistics": ["goals", "assists", "rating", "appearances"],
+          "ranking_type": "lowest",
+          "expected_response": "Bottom player with statistical value",
+          "filters": {
+            "ranking": {
+              "type": "ranking",
+              "direction": "lowest",
+              "keyword": "least"
+            }
+          }
+        },
+
+        "league_rankings": {
+          "template": "Top {number} {statistic} scorers in the league",
+          "examples": [
+            "Top 10 goal scorers in the Premier League",
+            "Best 5 assist providers this season",
+            "Highest rated players in La Liga"
+          ],
+          "entities": ["competition"],
+          "statistics": ["goals", "assists", "rating"],
+          "ranking_type": "top_n",
+          "expected_response": "Ranked list of players",
+          "scope": "league_wide"
+        }
+      }
+    },
+
+    "4_comparison_queries": {
+      "description": "Queries comparing multiple players or teams",
+      "intent": "comparison",
+      "database_method": "get_comparative_historical_stats(), comparison logic",
+      "patterns": {
+        "player_vs_player": {
+          "template": "{player1} vs {player2} {statistic}",
+          "examples": [
+            "Messi vs Ronaldo goals",
+            "Haaland vs Mbappe assists",
+            "Compare Salah and Mane's performance"
+          ],
+          "entities": ["player1", "player2"],
+          "statistics": ["goals", "assists", "rating", "performance"],
+          "comparison_type": "versus",
+          "expected_response": "Side-by-side comparison"
+        },
+
+        "team_vs_team": {
+          "template": "{team1} vs {team2} {statistic}",
+          "examples": [
+            "Manchester City vs Arsenal goals",
+            "Barcelona vs Real Madrid wins",
+            "Liverpool vs Chelsea head to head"
+          ],
+          "entities": ["team1", "team2"],
+          "statistics": ["goals", "wins", "points", "head_to_head"],
+          "comparison_type": "versus",
+          "expected_response": "Team comparison data"
+        },
+
+        "multiple_entity_comparison": {
+          "template": "Compare {entity1}, {entity2}, and {entity3} {statistic}",
+          "examples": [
+            "Compare Messi, Ronaldo, and Neymar goals",
+            "Compare Manchester City, Arsenal, and Liverpool points"
+          ],
+          "entities": ["multiple"],
+          "statistics": ["goals", "points", "rating"],
+          "comparison_type": "multiple",
+          "expected_response": "Multi-entity comparison table"
+        }
+      }
+    },
+
+    "5_historical_queries": {
+      "description": "Queries about historical data, career progression, milestones",
+      "intent": "historical",
+      "database_method": "get_historical_stats(), get_player_historical_context()",
+      "patterns": {
+        "career_milestones": {
+          "template": "{player_name}'s career milestones",
+          "examples": [
+            "Messi's career milestones",
+            "Ronaldo's major achievements",
+            "When did Messi score his first goal?"
+          ],
+          "entities": ["player_name"],
+          "historical_type": "milestone",
+          "expected_response": "List of career achievements",
+          "database_method": "get_recent_historical_milestones()"
+        },
+
+        "record_queries": {
+          "template": "{player_name}'s best {statistic} record",
+          "examples": [
+            "Messi's best goal scoring season",
+            "Ronaldo's highest rated performance",
+            "Salah's record breaking season"
+          ],
+          "entities": ["player_name"],
+          "statistics": ["goals", "assists", "rating"],
+          "historical_type": "record",
+          "record_type": "best",
+          "expected_response": "Historical record data"
+        },
+
+        "trend_analysis": {
+          "template": "{player_name}'s {statistic} trend over time",
+          "examples": [
+            "Messi's goal scoring trend",
+            "How has Ronaldo's performance changed?",
+            "Haaland's progression this season"
+          ],
+          "entities": ["player_name"],
+          "statistics": ["goals", "rating", "performance"],
+          "historical_type": "trend",
+          "expected_response": "Trend analysis data",
+          "database_method": "detect_performance_patterns()"
+        },
+
+        "when_questions": {
+          "template": "When did {player_name} {achievement}?",
+          "examples": [
+            "When did Messi reach 100 goals?",
+            "When did Ronaldo win his first Ballon d'Or?",
+            "Last time Arsenal won the league?"
+          ],
+          "entities": ["player_name", "team_name"],
+          "historical_type": "when",
+          "expected_response": "Date and context information"
+        }
+      }
+    },
+
+    "6_contextual_queries": {
+      "description": "Queries requiring additional context, explanations, or background information",
+      "intent": "context",
+      "database_method": "context analysis, background information",
+      "patterns": {
+        "significance_questions": {
+          "template": "Why is {event/statistic} significant?",
+          "examples": [
+            "Why is Messi's goal record significant?",
+            "What makes this match important?",
+            "Context behind Ronaldo's transfer?"
+          ],
+          "expected_response": "Explanatory context and background"
+        },
+
+        "derby_context": {
+          "template": "{team1} vs {team2} derby significance",
+          "examples": [
+            "El Clasico significance",
+            "Manchester derby history",
+            "North London derby context"
+          ],
+          "entities": ["team1", "team2"],
+          "derby_info": "detected",
+          "expected_response": "Historical and cultural context"
+        },
+
+        "verification_requests": {
+          "template": "Verify {statement} about {entity}",
+          "examples": [
+            "Is Messi really the GOAT?",
+            "Verify Ronaldo's Champions League record",
+            "Confirm Arsenal's unbeaten run"
+          ],
+          "entities": ["player_name", "team_name"],
+          "expected_response": "Fact-checking with sources"
+        }
+      }
+    },
+
+    "7_advanced_analytical": {
+      "description": "Complex analytical queries requiring multiple data points and calculations",
+      "intent": "analysis",
+      "database_method": "Multiple database methods combined",
+      "patterns": {
+        "form_analysis": {
+          "template": "{player_name}'s form in last {n} games",
+          "examples": [
+            "Haaland's form in last 5 games",
+            "Arsenal's recent performance",
+            "How is Salah playing recently?"
+          ],
+          "entities": ["player_name", "team_name"],
+          "time_context": "last_n_games",
+          "expected_response": "Recent performance analysis"
+        },
+
+        "venue_analysis": {
+          "template": "{entity}'s {statistic} at home vs away",
+          "examples": [
+            "Messi's goals at home vs away",
+            "Manchester City's form at home",
+            "Liverpool's away record this season"
+          ],
+          "entities": ["player_name", "team_name"],
+          "venues": ["home", "away"],
+          "expected_response": "Venue-specific performance data"
+        },
+
+        "seasonal_comparison": {
+          "template": "{player_name}'s {statistic} this season vs last season",
+          "examples": [
+            "Haaland's goals this season vs last season",
+            "Arsenal's points compared to last year",
+            "Salah's performance year on year"
+          ],
+          "entities": ["player_name", "team_name"],
+          "time_contexts": ["this_season", "last_season"],
+          "expected_response": "Seasonal performance comparison"
+        }
+      }
+    }
+  },
+
+  "best_practices": {
+    "query_formulation": {
+      "clear_entity_specification": "Always specify player/team names clearly",
+      "specific_statistics": "Use specific stat names (goals, assists, rating) rather than vague terms",
+      "time_context": "Include time period when relevant (this season, last 5 games, career)",
+      "venue_specification": "Specify home/away when analyzing venue-specific performance"
+    },
+
+    "entity_recognition": {
+      "player_names": "Use full names or commonly known aliases (Messi, Ronaldo, KDB)",
+      "team_names": "Use official names or common abbreviations (Man City, Barca, Arsenal)",
+      "avoid_ambiguity": "Distinguish between players with similar names"
+    },
+
+    "statistic_specification": {
+      "supported_stats": ["goals", "assists", "rating", "appearances", "minutes_played", "shots", "passes", "tackles", "yellow_cards", "red_cards"],
+      "complex_stats": "For advanced metrics, use specific terminology",
+      "aggregation": "Specify if you want totals, averages, or rates"
+    },
+
+    "time_context_usage": {
+      "current_data": "Use 'this season' for current statistics",
+      "historical_data": "Use 'career' for all-time statistics",
+      "recent_form": "Use 'last N games' for recent performance",
+      "specific_periods": "Use season years (2023-24) for specific timeframes"
+    }
+  },
+
+  "response_formats": {
+    "single_value": {
+      "structure": "Direct answer with context",
+      "example": "Messi has 15 goals this season in 20 appearances."
+    },
+
+    "comparison": {
+      "structure": "Side-by-side data with analysis",
+      "example": "Messi: 15 goals in 20 games (0.75 per game) vs Ronaldo: 12 goals in 18 games (0.67 per game)"
+    },
+
+    "ranking": {
+      "structure": "Ordered list with rankings",
+      "example": "Top scorers: 1. Haaland (22 goals), 2. Messi (15 goals), 3. Mbappe (14 goals)"
+    },
+
+    "historical": {
+      "structure": "Timeline with context",
+      "example": "Messi's milestones: 2009 - First Ballon d'Or, 2012 - 91 goals record, 2021 - Copa America win"
+    },
+
+    "analytical": {
+      "structure": "Multi-faceted analysis with insights",
+      "example": "Haaland's form: 8 goals in last 5 games, averaging 1.6 per game, 95% shot accuracy"
+    }
+  },
+
+  "database_mapping": {
+    "read_operations": {
+      "class": "SoccerDatabase",
+      "file": "src/database.py",
+      "methods": {
+        "basic_stats": "get_player_stat_sum()",
+        "historical_data": "get_historical_stats()",
+        "comparisons": "get_comparative_historical_stats()",
+        "trends": "get_player_historical_context()",
+        "team_stats": "get_team_players()",
+        "rankings": "_handle_team_query_async() with ranking filters"
+      }
+    },
+
+    "write_operations": {
+      "class": "DatabaseManager",
+      "file": "dataset_op/database_manager.py",
+      "methods": {
+        "insert_records": "insert_historical_record()",
+        "batch_import": "insert_historical_records_batch()",
+        "data_management": "clear_historical_records()"
+      }
+    }
+  },
+
+  "error_handling": {
+    "entity_not_found": "Player/team not found in database",
+    "stat_not_supported": "Requested statistic not available",
+    "insufficient_data": "Not enough data for analysis",
+    "invalid_time_context": "Time period not recognized"
+  },
+
+  "extensions": {
+    "future_patterns": {
+      "prediction_queries": "Predict {player_name}'s {statistic} next season",
+      "injury_analysis": "{player_name}'s performance before/after injury",
+      "transfer_impact": "How did {player_name} perform after joining {team_name}?"
+    },
+
+    "advanced_analytics": {
+      "correlation_analysis": "Correlation between {stat1} and {stat2}",
+      "performance_clusters": "Players similar to {player_name}",
+      "anomaly_detection": "Unusual performances by {player_name}"
+    }
+  }
+}

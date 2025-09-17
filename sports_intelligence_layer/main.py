@@ -290,14 +290,89 @@ def print_query_result(query: str, result: Dict[str, Any], query_num: int = None
         stat = db_result.get('stat', 'goals')
         top_player = db_result.get('top_player', {})
         all_players = db_result.get('all_players', [])
-        
+
         print(f"🏆 {ranking_type.title()} {stat} for {team_name}:")
         print(f"🥇 Top Player: {top_player.get('player_name', 'Unknown')} ({top_player.get('value', 0)} {stat})")
-        
+
         if len(all_players) > 1:
             print("📊 Top Rankings:")
             for i, player in enumerate(all_players[:5], 1):  # Show top 5
                 print(f"   {i}. {player.get('player_name', 'Unknown')}: {player.get('value', 0)} {stat}")
+
+    elif 'query_type' in db_result and db_result['query_type'] == 'historical_stats':
+        # Historical statistics
+        entity_name = db_result.get('entity_name', 'Entity')
+        entity_type = db_result.get('entity_type', 'player')
+        historical_data = db_result.get('historical_data', [])
+        total_records = db_result.get('total_records', 0)
+
+        print(f"📜 Historical Stats for {entity_name} ({entity_type}):")
+        print(f"📊 Total Records: {total_records}")
+
+        if historical_data:
+            print("🔍 Recent Records:")
+            for i, record in enumerate(historical_data[:5], 1):  # Show top 5
+                stat_type = record.get('stat_type', 'unknown')
+                record_value = record.get('record_value', 0)
+                season = record.get('season', 'Unknown')
+                print(f"   {i}. {stat_type}: {record_value} ({season})")
+
+    elif 'query_type' in db_result and db_result['query_type'] == 'historical_comparison':
+        # Historical comparison
+        comparison_data = db_result.get('comparison_data', {})
+        entity1 = comparison_data.get('entity1', {})
+        entity2 = comparison_data.get('entity2', {})
+        stat_type = db_result.get('stat_type', 'goals')
+
+        print(f"📊 Historical Comparison - {stat_type}:")
+        print(f"   {entity1.get('name', 'Entity 1')}: {entity1.get('value', 0)} (Trend: {entity1.get('trend', 'stable')})")
+        print(f"   {entity2.get('name', 'Entity 2')}: {entity2.get('value', 0)} (Trend: {entity2.get('trend', 'stable')})")
+
+        if 'winner' in comparison_data:
+            winner = comparison_data['winner']
+            print(f"🏆 Leader: {winner}")
+
+    elif 'query_type' in db_result and db_result['query_type'] == 'historical_milestones':
+        # Historical milestones
+        entity_name = db_result.get('entity_name', 'Entity')
+        milestones = db_result.get('milestones', [])
+
+        print(f"🏆 Career Milestones for {entity_name}:")
+
+        if milestones:
+            for milestone in milestones[:10]:  # Show top 10 milestones
+                date = milestone.get('date', 'Unknown')
+                description = milestone.get('description', 'Milestone achieved')
+                value = milestone.get('value', '')
+                print(f"   📅 {date}: {description} {value}")
+        else:
+            print("   No major milestones found")
+
+    elif 'query_type' in db_result and db_result['query_type'] == 'historical_context':
+        # Historical context
+        entity_name = db_result.get('entity_name', 'Entity')
+        context_data = db_result.get('context_data', {})
+
+        print(f"📖 Historical Context for {entity_name}:")
+
+        if 'summary' in context_data:
+            print(f"📝 Summary: {context_data['summary']}")
+
+        if 'key_periods' in context_data:
+            periods = context_data['key_periods']
+            print("📊 Key Periods:")
+            for period in periods[:5]:
+                season = period.get('season', 'Unknown')
+                performance = period.get('performance', 'Unknown')
+                print(f"   • {season}: {performance}")
+
+        if 'trends' in context_data:
+            trends = context_data['trends']
+            print("📈 Trends:")
+            for trend_name, trend_data in trends.items():
+                direction = trend_data.get('direction', 'stable')
+                significance = trend_data.get('significance', 'moderate')
+                print(f"   • {trend_name}: {direction} ({significance})")
     
     elif 'performance' in db_result:
         # Performance query
@@ -417,7 +492,7 @@ def main():
         # Test queries
         test_queries = [
             "How many goals has Kaoru Mitoma scored?",
-            "What's Danny Welbeck's assist record?", 
+            "What's Danny Welbeck's assist record?",
             "How many goals did Danny Welbeck score?",
             "What are Kaoru Mitoma's stats?",
             "Show me Billy Gilmour's goals, assists, and yellow cards this season",
@@ -426,7 +501,12 @@ def main():
             "Everton players goals",
             "Brighton vs Everton match stats",
             "Abdoulaye Doucouré shots on target",
-            "Jordan Pickford performance"
+            "Jordan Pickford performance",
+            # Historical queries
+            "Messi career milestones",
+            "Ronaldo historical goals progression",
+            "When did Haaland score his first Premier League goal?",
+            "Arsenal's historical performance trends"
         ]
         
         print(f"\nTesting {len(test_queries)} queries:\n")
