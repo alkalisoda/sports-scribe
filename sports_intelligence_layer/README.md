@@ -1,12 +1,14 @@
 # Soccer Intelligence Layer
 
-A complete end-to-end system for processing natural language soccer queries and retrieving data from Supabase.
+A complete end-to-end system for processing natural language soccer queries
+and retrieving data from Supabase.
 
 ## Overview
 
 This system implements the complete pipeline: **Query → Parse → SQL → Results**
 
-- **Query**: Natural language soccer questions (e.g., "How many goals has Haaland scored this season?")
+- **Query**: Natural language soccer questions
+  (e.g., "How many goals has Haaland scored this season?")
 - **Parse**: Extract entities, statistics, time context, and filters
 - **SQL**: Generate and execute database queries against Supabase
 - **Results**: Return structured data with metadata
@@ -68,6 +70,7 @@ print(result)
 The system expects the following tables in your Supabase database:
 
 ### Players Table
+
 ```sql
 CREATE TABLE players (
     id UUID PRIMARY KEY,
@@ -79,6 +82,7 @@ CREATE TABLE players (
 ```
 
 ### Teams Table
+
 ```sql
 CREATE TABLE teams (
     id UUID PRIMARY KEY,
@@ -88,6 +92,7 @@ CREATE TABLE teams (
 ```
 
 ### Player Match Stats Table
+
 ```sql
 CREATE TABLE player_match_stats (
     match_id UUID,
@@ -113,16 +118,19 @@ CREATE TABLE player_match_stats (
 The system can handle various types of queries:
 
 ### Basic Statistics
+
 - "How many goals has Kaoru Mitoma scored this season?"
 - "What's Danny Welbeck's assist record?"
 - "How many minutes has Jordan Pickford played?"
 
 ### Time-based Queries
+
 - "Show me Dominic Calvert-Lewin's goals in the last 5 games"
 - "What's João Pedro's performance this season?"
 - "How many clean sheets has Jason Steele kept last season?"
 
 ### Venue-based Queries
+
 - "What's João Pedro's performance at home?"
 - "How many goals has Mitoma scored away from home?"
 
@@ -182,7 +190,7 @@ The system can handle various types of queries:
 ## Performance
 
 - **Target**: <500ms average response time
-- **Optimizations**: 
+- **Optimizations**:
   - LRU caching for entity lookups
   - Compiled regex patterns
   - Efficient database queries
@@ -194,10 +202,19 @@ Run comprehensive tests:
 
 ```bash
 # Test parser only
-python -c "from src.query_parser import SoccerQueryParser; parser = SoccerQueryParser(); print(parser.parse_query('How many goals has Haaland scored?'))"
+python -c "
+from src.query_parser import SoccerQueryParser
+parser = SoccerQueryParser()
+print(parser.parse_query('How many goals has Haaland scored?'))
+"
 
 # Test database connection
-python -c "from src.database import SoccerDatabase; import os; db = SoccerDatabase(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_ROLE_KEY')); print('Connection successful')"
+python -c "
+from src.database import SoccerDatabase
+import os
+db = SoccerDatabase(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
+print('Connection successful')
+"
 
 # Run full end-to-end test
 python tests/test_end_to_end.py

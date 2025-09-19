@@ -45,7 +45,7 @@ async_client = AsyncOpenAI(
     timeout=30.0,
 )
 
-currentModel = os.getenv("OPENAI_MODEL")
+current_model = os.getenv("OPENAI_MODEL")
 
 logger = logging.getLogger(__name__)
 
@@ -291,10 +291,9 @@ class DataCollectorAgent():
             
             if not data:
                 raise ValueError("No game data received from API")
-            
+
             logger.info(f"Successfully collected game data for game {game_id}")
             return data
-            
         except Exception as e:
             logger.error(f"Failed to collect game data for game {game_id}: {e}")
             raise
@@ -309,10 +308,9 @@ class DataCollectorAgent():
             
             if not data:
                 raise ValueError("No team data received from API")
-            
+
             logger.info(f"Successfully collected team data for team {team_id}")
             return data
-            
         except Exception as e:
             logger.error(f"Failed to collect team data for team {team_id}: {e}")
             raise
@@ -327,10 +325,9 @@ class DataCollectorAgent():
             
             if not data:
                 raise ValueError("No player data received from API")
-            
+
             logger.info(f"Successfully collected player data for player {player_id} in season {season}")
             return data
-            
         except Exception as e:
             logger.error(f"Failed to collect player data for player {player_id} in season {season}: {e}")
             raise

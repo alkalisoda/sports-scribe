@@ -50,7 +50,7 @@
   },
   "context_boosters": {
     "player_indicators": [
-      "scored", "assisted", "saved", "player", "striker", 
+      "scored", "assisted", "saved", "player", "striker",
       "midfielder", "defender", "goalkeeper", "captain"
     ],
     "team_indicators": [
